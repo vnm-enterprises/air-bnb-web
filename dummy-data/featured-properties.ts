@@ -1,0 +1,39 @@
+export const properties = [
+    {
+      id: 1,
+      title: "The Modern Forest Haven",
+      location: "Aspen, Colorado",
+      price: "$342",
+      rating: "4.92",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCGOK2mt6uyD0oNXw4OtAKKcGfcs--vcuEW0EKDAYMQSa_bpy8tA5LGOE30HM8kSZR_Uq2Us7yYjGp01j9E1G4jqnZBnlAg7NHNzlw2-ESnvGiOJ3bPj-MVT9S_nCBJYp3vXDrapMTUlbRKh27H-WKR8SRj7tCq-mNP_TLghc00cd64pa0iSO_MxKqp1IavDGXKRIMj8lnODLrn-22sYLiMqqX4wNrmYcaNxW7InOCWSmY1d9HrJja0UHVg8ZWaddDMSnWXxSSFo6KG",
+      badge: "Guest Favorite",
+    },
+    {
+      id: 2,
+      title: "Aegean Glass Villa",
+      location: "Santorini, Greece",
+      price: "$520",
+      rating: "4.88",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBdnWMjfDsCryFnW49Mx6N7I89H51UP5ndZsnt-brDofuUno_eWYU-Ie6Z4EIOyKERLeNIlf9I4ASG3T-wg3AtL3DpOB3g5X4xtqThybEDAijFJ057K7qk-4DLIrUbUzCvBPm2uqRwydk0D7TTslTLTBjDx_AACopk4bHDCN4JTGDRwfl04_gWneZ0-OWQOeKfdKg6wVkVzZ1N0MZPKniU7GMOXgUA-wWWJtQuszpfMaSzi4qMbRk_nWtDZFFhVXJXr1fP1XOK2dBX0",
+      badge: null,
+    },
+    {
+      id: 3,
+      title: "Zen Garden Retreat",
+      location: "Kyoto, Japan",
+      price: "$215",
+      rating: "4.97",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAIXsI8CDDPk0gTxOmlbMLzJb7pK6YG0Sev9HH-I2sANo616Z8mZ7cdwB4aiikwyf5sJ7FBb_K0rn1RgMb67tGyoBLNPtx5FgJr8r1cFhn7TsGTkBZyvb6AOguv-WkOVopuRu63mvQmGo8EWKaVC92nh3fY4cyaWcTtCv16X0avIrQ2Z_lKBn4w_WJwX7nxZ-mPznTObxzZUI5YfT62WbDvcXjCRPIGCzMTrUIrovLnXX_L6VO205qwDpE9odoGHYJb5RK8XYX2Ji_4",
+      badge: null,
+    },
+    {
+      id: 4,
+      title: "SoHo Skyloft",
+      location: "New York City, USA",
+      price: "$450",
+      rating: "New",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCWO-3k8Ie1ETcgGpQafHBA2eguI5K2XZ-xGZ22n-m5yqA4Ssc345tvU4CrG6yxB9957ZANK6ebAwFnLW7acqi7AYhr3Ewjwa9EM9982KhXo7W8s7ffnoNnz58ZGjWZl8gdzWa-gywsYD9X221C8VZvTB9IJepRi4T-E7m1QaWKYSd5tob8cN0bK4lHgzXH-LpEd3-5_5RXwA5mU_r4bzjMFT-fyZ7op3oB6BmFjijv9DyXXy8A3r5YyhDWxpFzy4elE6KS5s4ru3oN",
+      badge: "New Listing",
+    },
+  ];
+;
