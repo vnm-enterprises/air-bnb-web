@@ -1,21 +1,21 @@
 import Header from "@/components/layout/Header";
-// import Hero from "@/components/hero-home/Hero";
-// import ListingsSection from "@/components/listings/ListingsSection";
-// import HostCTA from "@/components/cta/HostCTA";
-// import Newsletter from "@/components/newsletter/Newsletter";
-// import Footer from "@/components/layout/Footer";
+import Hero from "@/components/hero-home/Hero";
+import CuratedCollections from "@/components/listing/featured-listing";
+import HostBanner from "@/components/cta/HostBanner";
+import NewsletterSection from "@/components/newsletter/NewsletterSection";
+import Footer from "@/components/layout/Footer";
 
 export default function HomePage() {
   return (
     <>
       <Header />
-      {/* <main>
+      <main>
         <Hero />
-        <ListingsSection />
-        <HostCTA />
-        <Newsletter />
+        <CuratedCollections />
+        <HostBanner />
+        <NewsletterSection />
       </main>
-      <Footer /> */}
+      <Footer />
     </>
   );
 }
