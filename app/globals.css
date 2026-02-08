@@ -1,59 +1,23 @@
 @import "tailwindcss";
 
-/* -----------------------------
-   Design Tokens (Source of Truth)
------------------------------- */
-
-/* Light theme */
 :root {
-  /* colors */
-  --color-primary: #2c5f5d;
-  --color-background: #fafafa;
-  --color-foreground: #0f1716;
-
-  /* fonts */
+  --background-light: #ffffff;
+  --background-dark: #171717;
   --font-display: "Plus Jakarta Sans", sans-serif;
+}
 
-  /* radius */
-  --radius-sm: 0.25rem;
+@theme inline {
+  --color-background-light: var(--background-light);
+  --color-foreground-dark: var(--foreground-dark);
+  --color-primary: "#2C5F5D";
+  --font-display: "Plus Jakarta Sans", sans-serif;
+  --radius-DEFAULT: 0.25rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
 }
 
-/* Dark mode (class-based) */
-.dark {
-  --color-background: #0f1716;
-  --color-foreground: #fafafa;
-}
-
-/* -----------------------------
-   Tailwind Theme Mapping
------------------------------- */
-
-@theme inline {
-  /* colors */
-  --color-primary: var(--color-primary);
-  --color-background: var(--color-background);
-  --color-foreground: var(--color-foreground);
-
-  /* fonts */
-  --font-display: var(--font-display);
-
-  /* border radius */
-  --radius: var(--radius-sm);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
-  --radius-full: var(--radius-full);
-}
-
-/* -----------------------------
-   Base Styles
------------------------------- */
-
 body {
-  background-color: var(--color-background);
-  color: var(--color-foreground);
   font-family: var(--font-display);
 }
 
