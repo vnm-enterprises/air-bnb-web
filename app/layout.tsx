@@ -73,7 +73,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-[#FAFAFA] dark:bg-[#0F1716] text-slate-900 dark:text-slate-100 min-h-screen">
+      <body className="bg-[#f6f4f4] text-slate-900 min-h-screen">
         {children}
       </body>
     </html>
