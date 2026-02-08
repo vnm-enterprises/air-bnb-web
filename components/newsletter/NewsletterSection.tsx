@@ -9,7 +9,6 @@ export default function NewsletterSection() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Add form submission logic here
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 3000);
   };

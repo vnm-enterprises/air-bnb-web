@@ -17,7 +17,7 @@ export default function Logo() {
         className="text-xl font-semibold tracking-tight"
         style={{ color: "#FFFFFF" }}
       >
-        LOGO
+        Stay Found
       </h1>
     </div>
   );

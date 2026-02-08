@@ -39,13 +39,10 @@ function Button({
 
 export default function HostBanner() {
   return (
-    /* Full width background — Light mode only */
     <section className="my-16 bg-slate-200  py-12">
       <div className="relative overflow-hidden rounded-lg">
-        {/* Main Banner Container */}
         <div className="relative h-[520px] md:h-[600px] rounded-lg overflow-hidden max-w-7xl mx-auto">
 
-          {/* Background Image */}
           <div
             className="absolute inset-0 bg-cover bg-center transition-all duration-500"
             style={{
@@ -54,13 +51,10 @@ export default function HostBanner() {
             }}
           />
 
-          {/* Dark Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-900/55 to-slate-800/30 " />
 
-          {/* Additional Dark Overlay ONLY under text area */}
           <div className="absolute inset-y-0 left-0 w-full md:w-[60%] bg-gradient-to-r from-slate-900/80 to-transparent" />
 
-          {/* Content */}
           <div className="relative h-full flex flex-col justify-center px-6 sm:px-12 py-12 md:py-20 mx-auto max-w-7xl">
             <div className="max-w-2xl">
               <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">
@@ -81,7 +75,6 @@ export default function HostBanner() {
             </div>
           </div>
 
-          {/* Bottom Fade */}
           <div className="absolute bottom-0 left-0 w-full h-16 bg-gradient-to-t from-slate-900/90 to-transparent"></div>
         </div>
       </div>

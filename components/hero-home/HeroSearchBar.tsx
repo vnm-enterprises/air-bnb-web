@@ -4,23 +4,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Search, Plus, Minus, ChevronLeft, ChevronRight } from "lucide-react";
 
-/* ---------------- Types ---------------- */
 
 type ActiveField = "where" | "dates" | "guests" | null;
 type Mode = "dates" | "months" | "flexible";
 
-/* ---------------- Main Component ---------------- */
-
 export default function HeroSearchBar() {
   const [active, setActive] = useState<ActiveField>(null);
 
-  // Separate refs so outside-click logic doesn't close while using popovers
   const barRef = useRef<HTMLDivElement>(null);
   const datePanelRef = useRef<HTMLDivElement>(null);
   const guestPanelRef = useRef<HTMLDivElement>(null);
   const whereInputRef = useRef<HTMLInputElement>(null);
 
-  // API-ready state
   const [location, setLocation] = useState("");
   const [checkIn, setCheckIn] = useState<Date | null>(null);
   const [checkOut, setCheckOut] = useState<Date | null>(null);
@@ -32,7 +27,6 @@ export default function HeroSearchBar() {
 
   const totalGuests = guests.adults + guests.children + guests.infants;
 
-  /* Close popovers ONLY when clicking outside ALL related elements */
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node;
@@ -51,7 +45,6 @@ export default function HeroSearchBar() {
 
   return (
     <>
-      {/* SEARCH BAR */}
       <div
         ref={barRef}
         className="relative z-20 w-full max-w-4xl
@@ -60,7 +53,6 @@ export default function HeroSearchBar() {
           shadow-2xl p-2
           flex flex-col md:flex-row items-stretch md:items-center"
       >
-        {/* WHERE */}
         <SearchField
           label="Where"
           active={active === "where"}
@@ -83,7 +75,6 @@ export default function HeroSearchBar() {
 
         <Divider active={active !== null} />
 
-        {/* DATES */}
         <SearchField
           label="Dates"
           active={active === "dates"}
@@ -98,7 +89,6 @@ export default function HeroSearchBar() {
 
         <Divider active={active !== null} />
 
-        {/* GUESTS */}
         <SearchField
           label="Who"
           active={active === "guests"}
@@ -109,7 +99,6 @@ export default function HeroSearchBar() {
           </span>
         </SearchField>
 
-        {/* SEARCH BUTTON */}
         <button
           className="ml-0 md:ml-2 mt-2 md:mt-0
             flex items-center justify-center gap-2
@@ -123,7 +112,6 @@ export default function HeroSearchBar() {
         </button>
       </div>
 
-      {/* DATE PANEL */}
       {active === "dates" && (
         <FloatingPanel ref={datePanelRef} align="center">
           <Calendar
@@ -137,7 +125,6 @@ export default function HeroSearchBar() {
         </FloatingPanel>
       )}
 
-      {/* GUEST PANEL */}
       {active === "guests" && (
         <FloatingPanel ref={guestPanelRef} align="right">
           <GuestRow
@@ -164,7 +151,6 @@ export default function HeroSearchBar() {
   );
 }
 
-/* ---------------- Calendar ---------------- */
 
 function Calendar({
   checkIn,
@@ -176,11 +162,11 @@ function Calendar({
   onSelect: (start: Date, end: Date | null) => void;
 }) {
   const [mode, setMode] = useState<Mode>("dates");
-  const currentDate = new Date(2026, 1, 8); // February 8, 2026
+  const currentDate = new Date(2026, 1, 8);
 
   return (
     <div className="w-full min-h-[460px]">
-      {/* Tabs */}
+
       <div className="flex justify-center mb-8">
         <div className="flex rounded-full bg-slate-100  p-1">
           <Tab active={mode === "dates"} onClick={() => setMode("dates")}>
@@ -218,7 +204,6 @@ function Calendar({
   );
 }
 
-/* ---------------- Date Grid ---------------- */
 
 function DateGrid({
   checkIn,
@@ -229,7 +214,7 @@ function DateGrid({
   checkOut: Date | null;
   onSelect: (start: Date, end: Date | null) => void;
 }) {
-  const today = new Date(2026, 1, 8); // February 8, 2026
+  const today = new Date(2026, 1, 8);
   const months = [0, 1].map((offset) => {
     const d = new Date(today);
     d.setMonth(d.getMonth() + offset);
@@ -319,7 +304,6 @@ function MonthView({
             <button
               key={i}
               onClick={() => {
-                // Industrial-grade range selection
                 if (!checkIn) {
                   onSelect(date, null);
                 } else if (!checkOut) {
@@ -357,8 +341,6 @@ function MonthView({
   );
 }
 
-/* ---------------- Months Picker (Airbnb-Style Implementation) ---------------- */
-
 function MonthPicker({
   currentDate,
   onSelect,
@@ -375,15 +357,12 @@ function MonthPicker({
   const sliderRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
 
-  // Calculate start and end dates
   const startDate = new Date(currentDate);
   const endDate = new Date(currentDate);
   endDate.setMonth(currentDate.getMonth() + monthsCount);
 
-  // Calculate the range display
   const rangeText = `${formatDate(startDate)} to ${formatDate(endDate)}`;
 
-  // Handle slider interaction
   const handleSliderMove = (e: MouseEvent) => {
     if (!sliderRef.current || !dragging) return;
 
@@ -391,16 +370,13 @@ function MonthPicker({
     const x = e.clientX - rect.left;
     const width = rect.width;
 
-    // Calculate percentage and clamp to 0-100%
     let percent = (x / width) * 100;
     percent = Math.max(0, Math.min(100, percent));
 
-    // Convert to months (1-12)
     const months = Math.round((percent / 100) * 11) + 1;
     setMonthsCount(months);
   };
 
-  // Set up dragging
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (dragging) handleSliderMove(e);
@@ -420,7 +396,6 @@ function MonthPicker({
     };
   }, [dragging]);
 
-  // Update dates when monthsCount changes
   useEffect(() => {
     onSelect(startDate, endDate);
   }, [monthsCount]);
@@ -432,16 +407,13 @@ function MonthPicker({
         <div className="text-4xl font-bold">{monthsCount} {monthsCount === 1 ? 'month' : 'months'}</div>
       </div>
 
-      {/* Circular Slider */}
       <div className="relative w-full h-64 mb-8">
         <div
           ref={sliderRef}
           className="absolute inset-0 rounded-full border-2 border-[#2C5F5D]/20"
         >
-          {/* Background circle */}
           <div className="absolute inset-0 rounded-full border-2 border-[#2C5F5D]/20" />
 
-          {/* Active segment */}
           <div
             className="absolute inset-0 rounded-full border-2 border-[#2C5F5D] transition-all duration-300"
             style={{
@@ -450,7 +422,6 @@ function MonthPicker({
             }}
           />
 
-          {/* Handle */}
           <div
             ref={handleRef}
             className="absolute w-8 h-8 bg-[#2C5F5D] rounded-full shadow-lg cursor-pointer transition-transform"
@@ -468,7 +439,6 @@ function MonthPicker({
           />
         </div>
 
-        {/* Month markers */}
         {[...Array(12)].map((_, i) => (
           <div
             key={`month-marker-${i}`}
@@ -482,7 +452,6 @@ function MonthPicker({
         ))}
       </div>
 
-      {/* Date Range Display */}
       <div className="text-center text-sm text-slate-500">
         {rangeText}
       </div>
@@ -490,7 +459,7 @@ function MonthPicker({
   );
 }
 
-/* ---------------- Flexible Picker (Airbnb-Style Implementation) ---------------- */
+
 
 function FlexiblePicker({
   currentDate,
@@ -507,7 +476,6 @@ function FlexiblePicker({
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [showMonths, setShowMonths] = useState(false);
 
-  // Generate months (6 months starting from February 2026)
   const months = Array.from({ length: 6 }, (_, i) => {
     const date = new Date(2026, 1 + i, 1);
     return {
@@ -518,13 +486,11 @@ function FlexiblePicker({
     };
   });
 
-  // Handle stay length selection
   const handleStayLength = (length: "weekend" | "week" | "month") => {
     setStayLength(length);
     setShowMonths(true);
   };
 
-  // Handle month selection
   const handleMonthSelect = (monthIndex: number) => {
     setSelectedMonth(monthIndex);
 
@@ -534,7 +500,6 @@ function FlexiblePicker({
     onSelect(start, end);
   };
 
-  // Calculate the date range for the selected stay length
   const getRangeText = () => {
     if (!stayLength || selectedMonth === null) return "";
 
@@ -546,7 +511,7 @@ function FlexiblePicker({
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      {/* Stay Length Section */}
+
       <div className="mb-8">
         <h3 className="text-center text-lg font-medium mb-4">How long would you like to stay?</h3>
         <div className="flex justify-center gap-3">
@@ -566,7 +531,6 @@ function FlexiblePicker({
         </div>
       </div>
 
-      {/* Months Selection Section */}
       {showMonths && (
         <div>
           <h3 className="text-center text-lg font-medium mb-4">Go anytime</h3>
@@ -601,7 +565,7 @@ function FlexiblePicker({
   );
 }
 
-/* ---------------- Guests ---------------- */
+
 
 function GuestRow({
   label,
@@ -639,7 +603,6 @@ function GuestRow({
   );
 }
 
-/* ---------------- UI Helpers ---------------- */
 
 const SearchField = ({
   label,
@@ -730,14 +693,14 @@ const FlexButton = ({
   <button
     onClick={onClick}
     className="px-3 py-1.5 rounded-full border border-slate-300
-      text-sm hover:bg-slate-100 
+      text-sm hover:bg-slate-100
       transition-colors"
   >
     {children}
   </button>
 );
 
-/* ---------------- Utils ---------------- */
+
 
 function formatDate(d: Date) {
   return d.toLocaleDateString(undefined, {

@@ -1,7 +1,6 @@
 export default function Footer() {
   return (
     <footer className="mt-20">
-      {/* Main Footer */}
       <div
         className="
         bg-[#2C5F5D]
@@ -9,7 +8,7 @@ export default function Footer() {
         "
       >
         <div className="max-w-7xl mx-auto px-6 py-14 grid md:grid-cols-4 gap-10">
-          {/* Brand */}
+
           <div>
             <h3 className="text-xl font-bold mb-4">StayFound</h3>
             <p className="text-white/80 text-sm leading-relaxed">
@@ -18,7 +17,6 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Quick Links */}
           <div>
             <h4 className="font-semibold mb-4">Quick Links</h4>
             <FooterLink>Buy Property</FooterLink>
@@ -27,7 +25,6 @@ export default function Footer() {
             <FooterLink>About Us</FooterLink>
           </div>
 
-          {/* Property Types */}
           <div>
             <h4 className="font-semibold mb-4">Property Types</h4>
             <FooterLink>Houses</FooterLink>
@@ -36,7 +33,6 @@ export default function Footer() {
             <FooterLink>Villas</FooterLink>
           </div>
 
-          {/* Contact */}
           <div>
             <h4 className="font-semibold mb-4">Contact Us</h4>
 
@@ -48,7 +44,6 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
         <div className="border-t border-white/10">
           <div className="max-w-7xl mx-auto px-6 py-5 text-center text-sm text-white/70">
             © {new Date().getFullYear()} StayFound. All rights reserved.
