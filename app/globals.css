@@ -31,3 +31,15 @@ body {
 .nav-link-active {
   @apply text-primary relative after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-full after:h-0.5 after:bg-primary;
 }
+
+ /* Add this to your global CSS for the shake animation */
+
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}

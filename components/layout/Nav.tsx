@@ -15,11 +15,8 @@ export default function Nav() {
         <Link
           key={link.label}
           href={link.href}
-          className={`text-sm font-bold transition-colors ${
-            link.active
-              ? "nav-link-active"
-              : "text-slate-600 dark:text-slate-400 hover:text-[#2C5F5D]"
-          }`}
+          className="text-sm font-semibold transition-colors"
+          style={{ color: "#FFFFFF" }}
         >
           {link.label}
         </Link>
