@@ -9,7 +9,7 @@ export default function HeroBackground() {
             rgba(0,0,0,0.35),
             rgba(0,0,0,0.45)
           ),
-          url("/hero-image.jpg")
+          url("https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?q=80&w=2070&auto=format&fit=crop")
         `,
       }}
     />
