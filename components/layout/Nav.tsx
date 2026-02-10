@@ -3,9 +3,9 @@
 import Link from "next/link";
 
 const links = [
-  { label: "Explore", href: "#", active: true },
-  { label: "Become a Host", href: "#" },
-  { label: "Support", href: "#" },
+  { label: "Explore", href: "/explore", active: true },
+  { label: "Become a Host", href: "/host" },
+  { label: "Support", href: "/support" },
 ];
 
 export default function Nav() {

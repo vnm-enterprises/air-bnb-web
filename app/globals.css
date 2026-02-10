@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background-light: #ffffff;
+  --background-light: #fcf9f9;
   --background-dark: #171717;
   --font-display: "Plus Jakarta Sans", sans-serif;
 }
@@ -42,4 +42,10 @@ body {
 }
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+/* Fix for Leaflet marker icons */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
 }
