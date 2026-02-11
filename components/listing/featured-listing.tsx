@@ -21,7 +21,7 @@ export default function CuratedCollections() {
             Discover our most exceptional retreats and urban escapes.
           </p>
         </div>
-        <button className="hidden md:flex items-center gap-2 text-primary font-bold hover:gap-3 transition-all">
+        <button className="hidden md:flex items-center gap-2 text-[#2C5F5D] font-bold hover:gap-3 transition-all">
           Explore all collections
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -44,7 +44,7 @@ export default function CuratedCollections() {
               ></div>
 
               {property.badge && (
-                <div className="absolute top-4 right-4 bg-white/90  backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] font-black text-primary tracking-widest uppercase shadow-lg">
+                <div className="absolute top-4 right-4 bg-white/90  backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] font-black text-[#2C5F5D] tracking-widest uppercase shadow-lg">
                   {property.badge}
                 </div>
               )}
@@ -73,7 +73,7 @@ export default function CuratedCollections() {
                     {property.rating}
                   </span>
                 </div>
-                <div className="text-sm font-bold text-primary">
+                <div className="text-sm font-bold text-[#2C5F5D]">
                   {property.price}
                 </div>
               </div>
