@@ -33,7 +33,7 @@ export default function NewsletterSection() {
             placeholder="Enter your email address"
             type="email"
           />
-          <button className="bg-[#2E5E59] text-white font-bold px-10 py-4 rounded-xl shadow-lg shadow-primary/20 hover:brightness-110 transition-all" onClick={handleSubmit}>
+          <button className="bg-[#2E5E59] text-white font-bold px-10 py-4 rounded-xl shadow-lg shadow-[#2C5F5D]/20 hover:brightness-110 transition-all" onClick={handleSubmit}>
             Join Now
           </button>
         </div>
