@@ -1,0 +1,3032 @@
+<?php
+/**
+ * Plugin Name: Headless Backend - Industrial Airbnb API
+ * Description: Complete production-ready REST API for headless Airbnb-style platform (Auth, Properties, Bookings, Payments, Reviews, Admin, Notifications)
+ * Version: 1.0.0
+ * Author: Your Name
+ * Text Domain: headless-backend
+ *
+ * Requirements:
+ * - ACF Pro (Advanced Custom Fields)
+ * - firebase/php-jwt via Composer
+ * - WordPress 6.0+
+ * - PHP 8.0+
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+if (!defined('JWT_AUTH_SECRET_KEY')) {
+    add_action('admin_notices', function () {
+        echo '<div class="error"><p>⚠️ Headless Backend: JWT_AUTH_SECRET_KEY not defined in wp-config.php</p></div>';
+    });
+    return;
+}
+
+// Ensure Firebase JWT is available
+if (!class_exists('\Firebase\JWT\JWT')) {
+    add_action('admin_notices', function () {
+        echo '<div class="error"><p>⚠️ Headless Backend: Firebase JWT library not found. Run: composer require firebase/php-jwt</p></div>';
+    });
+    return;
+}
+
+/* =============================================================================
+   CONSTANTS & CONFIGURATION
+============================================================================= */
+
+define('HLB_API_NAMESPACE', 'api/v1');
+define('HLB_PROPERTY_POST_TYPE', 'property');
+define('HLB_BOOKING_POST_TYPE', 'booking');
+define('HLB_REVIEW_POST_TYPE', 'review');
+define('HLB_NOTIFICATION_POST_TYPE', 'notification');
+
+// Booking status states
+define('HLB_BOOKING_STATUS_PENDING_PAYMENT', 'pending_payment');
+define('HLB_BOOKING_STATUS_PENDING_APPROVAL', 'pending_host_approval');
+define('HLB_BOOKING_STATUS_CONFIRMED', 'confirmed');
+define('HLB_BOOKING_STATUS_CANCELLED_TRAVELER', 'cancelled_by_traveler');
+define('HLB_BOOKING_STATUS_CANCELLED_HOST', 'cancelled_by_host');
+define('HLB_BOOKING_STATUS_EXPIRED', 'expired');
+define('HLB_BOOKING_STATUS_COMPLETED', 'completed');
+
+// Payment states
+define('HLB_PAYMENT_STATUS_INTENT', 'intent_created');
+define('HLB_PAYMENT_STATUS_AUTHORIZED', 'authorized');
+define('HLB_PAYMENT_STATUS_CAPTURED', 'captured');
+define('HLB_PAYMENT_STATUS_FAILED', 'failed');
+define('HLB_PAYMENT_STATUS_REFUNDED', 'refunded');
+
+// Property statuses
+define('HLB_PROPERTY_STATUS_DRAFT', 'draft');
+define('HLB_PROPERTY_STATUS_PENDING', 'pending_review');
+define('HLB_PROPERTY_STATUS_APPROVED', 'approved');
+define('HLB_PROPERTY_STATUS_REJECTED', 'rejected');
+define('HLB_PROPERTY_STATUS_SUSPENDED', 'suspended');
+
+/* =============================================================================
+   CORE HELPERS
+============================================================================= */
+
+/**
+ * Generate cryptographically secure refresh token
+ */
+function hlb_generate_refresh_token(): string {
+    return bin2hex(random_bytes(64));
+}
+
+/**
+ * Generate JWT access token for user
+ */
+function hlb_generate_access_token(WP_User $user): string {
+    $issued_at = time();
+    $expire = $issued_at + (defined('JWT_AUTH_EXPIRE') ? JWT_AUTH_EXPIRE : 900);
+
+    $payload = [
+        'iss'  => get_bloginfo('url'),
+        'iat'  => $issued_at,
+        'nbf'  => $issued_at,
+        'exp'  => $expire,
+        'data' => [
+            'user' => [
+                'id'    => $user->ID,
+                'email' => $user->user_email,
+                'roles' => $user->roles
+            ]
+        ]
+    ];
+
+    return \Firebase\JWT\JWT::encode($payload, JWT_AUTH_SECRET_KEY, 'HS256');
+}
+
+/**
+ * Decode and validate JWT token
+ */
+function hlb_decode_access_token(string $token): ?object {
+    try {
+        return \Firebase\JWT\JWT::decode($token, JWT_AUTH_SECRET_KEY, ['HS256']);
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+/**
+ * Get current user from JWT Authorization header
+ */
+function hlb_get_user_from_token(): ?WP_User {
+    $auth_header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+
+    if (!preg_match('/Bearer\s+(.*)$/i', $auth_header, $matches)) {
+        return null;
+    }
+
+    $token = trim($matches[1]);
+    $decoded = hlb_decode_access_token($token);
+
+    if (!$decoded || !isset($decoded->data->user->id)) {
+        return null;
+    }
+
+    $user = get_user_by('id', $decoded->data->user->id);
+    return ($user && $user->exists()) ? $user : null;
+}
+
+/**
+ * Permission callback: Require valid JWT token
+ */
+function hlb_require_auth(): bool {
+    return hlb_get_user_from_token() !== null;
+}
+
+/**
+ * Permission callback: Require specific role
+ */
+function hlb_require_role(string $role): bool {
+    $user = hlb_get_user_from_token();
+    return $user && in_array($role, $user->roles);
+}
+
+/**
+ * Permission callback: Require email verification
+ */
+function hlb_require_email_verified(): bool {
+    $user = hlb_get_user_from_token();
+    return $user && get_user_meta($user->ID, 'email_verified', true);
+}
+
+/**
+ * Send JSON response with proper headers
+ */
+function hlb_respond($data, int $status = 200): void {
+    status_header($status);
+    header('Content-Type: application/json; charset=' . get_option('blog_charset'));
+    echo wp_json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    exit;
+}
+
+/**
+ * Format property data for API response
+ */
+function hlb_format_property(WP_Post $post): array {
+    $gallery_ids = get_field('gallery_images', $post->ID) ?: [];
+    $gallery = array_filter(array_map('wp_get_attachment_url', $gallery_ids));
+
+    $amenities = get_field('amenities', $post->ID) ?: [];
+    $amenities = is_array($amenities) ? $amenities : [];
+
+    return [
+        'id'                    => $post->ID,
+        'title'                 => get_the_title($post),
+        'description'           => wpautop($post->post_content),
+        'host_id'               => $post->post_author,
+        'host_name'             => get_the_author_meta('display_name', $post->post_author),
+        'price_per_night'       => (float) get_field('price_per_night', $post->ID),
+        'cleaning_fee'          => (float) get_field('cleaning_fee', $post->ID),
+        'service_fee_percent'   => (float) get_field('service_fee_percent', $post->ID),
+        'max_guests'            => (int) get_field('max_guests', $post->ID),
+        'bedrooms'              => (int) get_field('bedrooms', $post->ID),
+        'bathrooms'             => (float) get_field('bathrooms', $post->ID),
+        'address'               => get_field('address', $post->ID),
+        'coordinates'           => get_field('coordinates', $post->ID),
+        'amenities'             => $amenities,
+        'house_rules'           => get_field('house_rules', $post->ID),
+        'cancellation_policy'   => get_field('cancellation_policy', $post->ID),
+        'instant_booking'       => (bool) get_field('instant_booking', $post->ID),
+        'status'                => get_field('property_status', $post->ID) ?: HLB_PROPERTY_STATUS_DRAFT,
+        'rating'                => (float) get_field('average_rating', $post->ID),
+        'total_reviews'         => (int) get_field('total_reviews', $post->ID),
+        'featured_image'        => get_the_post_thumbnail_url($post->ID, 'large'),
+        'gallery'               => $gallery,
+        'created_at'            => get_the_date('c', $post),
+        'updated_at'            => get_the_modified_date('c', $post)
+    ];
+}
+
+/**
+ * Format booking data for API response
+ */
+function hlb_format_booking(WP_Post $post): array {
+    $property_id = (int) get_field('property_id', $post->ID);
+    $check_in = get_field('check_in_date', $post->ID);
+    $check_out = get_field('check_out_date', $post->ID);
+
+    $nights = $check_in && $check_out
+        ? max(1, (strtotime($check_out) - strtotime($check_in)) / 86400)
+        : 0;
+
+    return [
+        'id'                => $post->ID,
+        'property_id'       => $property_id,
+        'property_title'    => $property_id ? get_the_title($property_id) : null,
+        'traveler_id'       => (int) get_field('traveler_id', $post->ID),
+        'host_id'           => $property_id ? get_post_field('post_author', $property_id) : null,
+        'check_in'          => $check_in,
+        'check_out'         => $check_out,
+        'nights'            => $nights,
+        'price_per_night'   => (float) get_field('price_per_night', $property_id),
+        'cleaning_fee'      => (float) get_field('cleaning_fee', $property_id),
+        'service_fee'       => (float) get_field('service_fee', $post->ID),
+        'taxes'             => (float) get_field('taxes', $post->ID),
+        'total_price'       => (float) get_field('total_price', $post->ID),
+        'currency'          => 'USD',
+        'booking_status'    => get_field('booking_status', $post->ID),
+        'payment_status'    => get_field('payment_status', $post->ID),
+        'cancellation_deadline' => get_field('cancellation_deadline', $post->ID),
+        'created_at'        => get_the_date('c', $post),
+        'updated_at'        => get_the_modified_date('c', $post)
+    ];
+}
+
+/**
+ * Format user profile for API response
+ */
+function hlb_format_user_profile(WP_User $user): array {
+    $avatar_id = get_user_meta($user->ID, 'profile_image_id', true);
+
+    return [
+        'id'                        => $user->ID,
+        'email'                     => $user->user_email,
+        'name'                      => $user->display_name,
+        'first_name'                => $user->first_name,
+        'last_name'                 => $user->last_name,
+        'bio'                       => get_user_meta($user->ID, 'bio', true),
+        'phone'                     => get_user_meta($user->ID, 'phone', true),
+        'avatar_url'                => $avatar_id ? wp_get_attachment_url($avatar_id) : get_avatar_url($user->ID, ['size' => 256]),
+        'roles'                     => $user->roles,
+        'email_verified'            => (bool) get_user_meta($user->ID, 'email_verified', true),
+        'host_verification_status'  => get_user_meta($user->ID, 'host_verification_status', true) ?: 'unverified',
+        'identity_verification_status' => get_user_meta($user->ID, 'identity_verification_status', true) ?: 'unverified',
+        'account_status'            => get_user_meta($user->ID, 'account_status', true) ?: 'active',
+        'average_rating'            => (float) get_user_meta($user->ID, 'host_average_rating', true),
+        'total_reviews'             => (int) get_user_meta($user->ID, 'host_total_reviews', true),
+        'created_at'                => date('c', strtotime($user->user_registered)),
+        'last_login'                => get_user_meta($user->ID, 'last_login', true)
+    ];
+}
+
+/**
+ * Format notification for API response
+ */
+function hlb_format_notification(WP_Post $post): array {
+    return [
+        'id'            => $post->ID,
+        'user_id'       => (int) get_field('notification_user_id', $post->ID),
+        'type'          => get_field('notification_type', $post->ID),
+        'title'         => get_the_title($post),
+        'message'       => $post->post_content,
+        'data'          => get_field('notification_data', $post->ID),
+        'read'          => (bool) get_field('notification_read', $post->ID),
+        'created_at'    => get_the_date('c', $post)
+    ];
+}
+
+/* =============================================================================
+   DOMAIN: AUTHENTICATION & IDENTITY
+============================================================================= */
+
+/**
+ * Send verification email
+ */
+function hlb_send_verification_email(WP_User $user): bool {
+    $key = wp_generate_password(20, false);
+    update_user_meta($user->ID, 'email_verification_key', $key);
+    update_user_meta($user->ID, 'email_verification_expiry', time() + 24 * HOUR_IN_SECONDS);
+
+    $verify_url = rest_url('api/v1/auth/verify-email') . '?user_id=' . $user->ID . '&key=' . $key;
+
+    return wp_mail(
+        $user->user_email,
+        'Verify your email - ' . get_bloginfo('name'),
+        "Click to verify: $verify_url\n\nThis link expires in 24 hours."
+    );
+}
+
+/**
+ * Register cron jobs for background tasks
+ */
+function hlb_register_cron_jobs() {
+    $events = [
+        'hlb_expire_unpaid_bookings' => ['schedule' => 'hourly', 'action' => 'hlb_cron_expire_unpaid_bookings'],
+        'hlb_mark_completed_bookings' => ['schedule' => 'daily', 'action' => 'hlb_cron_mark_completed_bookings'],
+        'hlb_send_booking_reminders' => ['schedule' => 'daily', 'action' => 'hlb_cron_send_booking_reminders'],
+        'hlb_clean_orphaned_data' => ['schedule' => 'weekly', 'action' => 'hlb_cron_clean_orphaned_data']
+    ];
+
+    foreach ($events as $hook => $config) {
+        if (!wp_next_scheduled($config['action'])) {
+            wp_schedule_event(time(), $config['schedule'], $config['action']);
+        }
+    }
+}
+add_action('init', 'hlb_register_cron_jobs');
+
+/* =============================================================================
+   REST API ROUTES REGISTRATION
+============================================================================= */
+
+add_action('rest_api_init', function () {
+
+    /* -------------------------------------------------------------------------
+       1️⃣ AUTHENTICATION DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // POST /auth/register
+    register_rest_route(HLB_API_NAMESPACE, '/auth/register', [
+        'methods' => 'POST',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'name' => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
+            'email' => ['required' => true, 'type' => 'string', 'validate_callback' => 'is_email'],
+            'password' => ['required' => true, 'type' => 'string', 'min_length' => 8],
+            'role' => ['required' => true, 'type' => 'string', 'enum' => ['traveler', 'host']]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $name = sanitize_text_field($req['name']);
+            $email = sanitize_email($req['email']);
+            $password = $req['password'];
+            $role = sanitize_text_field($req['role']);
+
+            if (email_exists($email)) {
+                return new WP_Error('email_exists', 'Email already registered', ['status' => 409]);
+            }
+
+            if (strlen($password) < 8) {
+                return new WP_Error('weak_password', 'Password must be at least 8 characters', ['status' => 400]);
+            }
+
+            $user_id = wp_create_user($email, $password, $email);
+            if (is_wp_error($user_id)) {
+                return new WP_Error('registration_failed', 'Could not create user', ['status' => 500]);
+            }
+
+            $user = new WP_User($user_id);
+            $user->set_role($role);
+            wp_update_user(['ID' => $user_id, 'display_name' => $name, 'first_name' => explode(' ', $name)[0]]);
+
+            // Send verification email
+            hlb_send_verification_email($user);
+
+            // Log registration
+            update_user_meta($user_id, 'registration_ip', $_SERVER['REMOTE_ADDR'] ?? '');
+            update_user_meta($user_id, 'registration_user_agent', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+            return [
+                'success' => true,
+                'message' => 'Registration successful. Please check your email to verify your account.',
+                'user_id' => $user_id,
+                'email_verified' => false
+            ];
+        }
+    ]);
+
+    // POST /auth/verify-email
+    register_rest_route(HLB_API_NAMESPACE, '/auth/verify-email', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'user_id' => ['required' => true, 'type' => 'integer'],
+            'key' => ['required' => true, 'type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user_id = (int) $req['user_id'];
+            $key = sanitize_text_field($req['key']);
+            $user = get_user_by('id', $user_id);
+
+            if (!$user) {
+                return new WP_Error('user_not_found', 'User not found', ['status' => 404]);
+            }
+
+            $stored_key = get_user_meta($user_id, 'email_verification_key', true);
+            $expiry = get_user_meta($user_id, 'email_verification_expiry', true);
+
+            if (!$stored_key || $key !== $stored_key || time() > $expiry) {
+                return new WP_Error('invalid_key', 'Invalid or expired verification link', ['status' => 400]);
+            }
+
+            update_user_meta($user_id, 'email_verified', true);
+            delete_user_meta($user_id, 'email_verification_key');
+            delete_user_meta($user_id, 'email_verification_expiry');
+
+            // Create welcome notification
+            hlb_create_notification($user_id, 'welcome', 'Welcome!', 'Your account has been verified. Start exploring!');
+
+            return [
+                'success' => true,
+                'message' => 'Email verified successfully',
+                'email_verified' => true
+            ];
+        }
+    ]);
+
+    // POST /auth/login
+    register_rest_route(HLB_API_NAMESPACE, '/auth/login', [
+        'methods' => 'POST',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'email' => ['required' => true, 'type' => 'string'],
+            'password' => ['required' => true, 'type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $email = sanitize_email($req['email']);
+            $password = $req['password'];
+
+            $user = wp_authenticate($email, $password);
+            if (is_wp_error($user)) {
+                sleep(1); // Rate limiting
+                return new WP_Error('invalid_credentials', 'Invalid email or password', ['status' => 401]);
+            }
+
+            // Check account status
+            $account_status = get_user_meta($user->ID, 'account_status', true) ?: 'active';
+            if ($account_status !== 'active') {
+                return new WP_Error('account_inactive', 'Account is ' . $account_status, ['status' => 403]);
+            }
+
+            // Update last login
+            update_user_meta($user->ID, 'last_login', current_time('mysql'));
+
+            // Generate tokens
+            $access_token = hlb_generate_access_token($user);
+            $refresh_token = hlb_generate_refresh_token();
+
+            // Store refresh token hash
+            update_user_meta($user->ID, 'refresh_token_hash', wp_hash_password($refresh_token));
+            update_user_meta($user->ID, 'refresh_token_expiry', time() + JWT_REFRESH_EXPIRE);
+            update_user_meta($user->ID, 'refresh_token_user_agent', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+            return [
+                'access_token' => $access_token,
+                'refresh_token' => $refresh_token,
+                'token_type' => 'Bearer',
+                'expires_in' => JWT_AUTH_EXPIRE,
+                'user' => hlb_format_user_profile($user)
+            ];
+        }
+    ]);
+
+    // POST /auth/refresh
+    register_rest_route(HLB_API_NAMESPACE, '/auth/refresh', [
+        'methods' => 'POST',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'refresh_token' => ['required' => true, 'type' => 'string'],
+            'user_id' => ['required' => true, 'type' => 'integer']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $refresh_token = sanitize_text_field($req['refresh_token']);
+            $user_id = (int) $req['user_id'];
+
+            $hash = get_user_meta($user_id, 'refresh_token_hash', true);
+            $expiry = get_user_meta($user_id, 'refresh_token_expiry', true);
+
+            if (!$hash || time() > $expiry || !wp_check_password($refresh_token, $hash)) {
+                // Token rotation: invalidate old token on misuse
+                if ($hash) {
+                    delete_user_meta($user_id, 'refresh_token_hash');
+                    delete_user_meta($user_id, 'refresh_token_expiry');
+                }
+                return new WP_Error('invalid_refresh', 'Invalid or expired refresh token', ['status' => 401]);
+            }
+
+            $user = get_user_by('id', $user_id);
+            if (!$user || $user->ID !== $user_id) {
+                return new WP_Error('user_not_found', 'User not found', ['status' => 404]);
+            }
+
+            // Rotate refresh token
+            $new_refresh = hlb_generate_refresh_token();
+            update_user_meta($user_id, 'refresh_token_hash', wp_hash_password($new_refresh));
+            update_user_meta($user_id, 'refresh_token_expiry', time() + JWT_REFRESH_EXPIRE);
+
+            return [
+                'access_token' => hlb_generate_access_token($user),
+                'refresh_token' => $new_refresh,
+                'expires_in' => JWT_AUTH_EXPIRE
+            ];
+        }
+    ]);
+
+    // POST /auth/logout
+    register_rest_route(HLB_API_NAMESPACE, '/auth/logout', [
+        'methods' => 'POST',
+        'permission_callback' => 'hlb_require_auth',
+        'callback' => function () {
+            $user = hlb_get_user_from_token();
+            if (!$user) {
+                return new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+            }
+
+            // Invalidate refresh token
+            delete_user_meta($user->ID, 'refresh_token_hash');
+            delete_user_meta($user->ID, 'refresh_token_expiry');
+
+            // Could add token blacklist here for immediate access token invalidation
+
+            return ['success' => true, 'message' => 'Logged out successfully'];
+        }
+    ]);
+
+    // GET /auth/me
+    register_rest_route(HLB_API_NAMESPACE, '/auth/me', [
+        'methods' => 'GET',
+        'permission_callback' => 'hlb_require_auth',
+        'callback' => function () {
+            $user = hlb_get_user_from_token();
+            if (!$user) {
+                return new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+            }
+            return hlb_format_user_profile($user);
+        }
+    ]);
+
+    // POST /auth/forgot-password
+    register_rest_route(HLB_API_NAMESPACE, '/auth/forgot-password', [
+        'methods' => 'POST',
+        'permission_callback' => '__return_true',
+        'args' => ['email' => ['required' => true, 'type' => 'string']],
+        'callback' => function (WP_REST_Request $req) {
+            $email = sanitize_email($req['email']);
+            $user = get_user_by('email', $email);
+
+            // Always return success to prevent user enumeration
+            if (!$user) {
+                return ['success' => true, 'message' => 'If that email exists, a reset link has been sent'];
+            }
+
+            // Use WordPress core password reset
+            retrieve_password($user->user_login);
+
+            return ['success' => true, 'message' => 'If that email exists, a reset link has been sent'];
+        }
+    ]);
+
+    // POST /auth/reset-password
+    register_rest_route(HLB_API_NAMESPACE, '/auth/reset-password', [
+        'methods' => 'POST',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'key' => ['required' => true, 'type' => 'string'],
+            'login' => ['required' => true, 'type' => 'string'],
+            'new_password' => ['required' => true, 'type' => 'string', 'min_length' => 8]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $key = sanitize_text_field($req['key']);
+            $login = sanitize_user($req['login']);
+            $new_password = $req['new_password'];
+
+            if (strlen($new_password) < 8) {
+                return new WP_Error('weak_password', 'Password must be at least 8 characters', ['status' => 400]);
+            }
+
+            $user = check_password_reset_key($key, $login);
+            if (is_wp_error($user)) {
+                return new WP_Error('invalid_key', 'Invalid or expired reset key', ['status' => 400]);
+            }
+
+            reset_password($user, $new_password);
+
+            // Invalidate all refresh tokens for security
+            delete_user_meta($user->ID, 'refresh_token_hash');
+            delete_user_meta($user->ID, 'refresh_token_expiry');
+
+            return ['success' => true, 'message' => 'Password reset successfully'];
+        }
+    ]);
+
+    // POST /auth/upgrade-role
+    register_rest_route(HLB_API_NAMESPACE, '/auth/upgrade-role', [
+        'methods' => 'POST',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => [
+            'target_role' => ['required' => true, 'type' => 'string', 'enum' => ['host']]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            if (!$user) {
+                return new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+            }
+
+            if (!in_array('traveler', $user->roles)) {
+                return new WP_Error('invalid_state', 'Only travelers can upgrade to host', ['status' => 400]);
+            }
+
+            // Start host verification process
+            update_user_meta($user->ID, 'host_verification_status', 'pending');
+            $user->add_role('host');
+
+            // Notify admin
+            hlb_create_notification(1, 'admin_alert', 'New Host Application', "User {$user->ID} requested host upgrade");
+
+            return [
+                'success' => true,
+                'message' => 'Host application submitted. Verification pending.',
+                'host_verification_status' => 'pending'
+            ];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       2️⃣ USER / PROFILE DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // GET /users/me
+    register_rest_route(HLB_API_NAMESPACE, '/users/me', [
+        'methods' => 'GET',
+        'permission_callback' => 'hlb_require_auth',
+        'callback' => function () {
+            $user = hlb_get_user_from_token();
+            return $user ? hlb_format_user_profile($user) : new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+        }
+    ]);
+
+    // PUT /users/me
+    register_rest_route(HLB_API_NAMESPACE, '/users/me', [
+        'methods' => 'PUT',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => [
+            'name' => ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
+            'bio' => ['type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field'],
+            'phone' => ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            if (!$user) {
+                return new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+            }
+
+            $update_data = ['ID' => $user->ID];
+
+            if ($req['name']) {
+                $update_data['display_name'] = sanitize_text_field($req['name']);
+            }
+            if ($req['bio']) {
+                update_user_meta($user->ID, 'bio', sanitize_textarea_field($req['bio']));
+            }
+            if ($req['phone']) {
+                update_user_meta($user->ID, 'phone', sanitize_text_field($req['phone']));
+            }
+
+            if (count($update_data) > 1) {
+                wp_update_user($update_data);
+            }
+
+            return ['success' => true, 'user' => hlb_format_user_profile(get_user_by('id', $user->ID))];
+        }
+    ]);
+
+    // POST /users/me/avatar (multipart/form-data)
+    register_rest_route(HLB_API_NAMESPACE, '/users/me/avatar', [
+        'methods' => 'POST',
+        'permission_callback' => 'hlb_require_auth',
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            if (!$user) {
+                return new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+            }
+
+            $files = $req->get_file_params();
+            if (empty($files['file'])) {
+                return new WP_Error('no_file', 'File required', ['status' => 400]);
+            }
+
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+
+            // Override $_FILES for media_handle_upload
+            $_FILES['file'] = $files['file'];
+
+            $attachment_id = media_handle_upload('file', 0, [], [
+                'test_form' => false,
+                'mimes' => ['jpg|jpeg|png|webp' => 'image/jpeg|image/png|image/webp']
+            ]);
+
+            if (is_wp_error($attachment_id)) {
+                return new WP_Error('upload_failed', $attachment_id->get_error_message(), ['status' => 400]);
+            }
+
+            // Delete old avatar if exists
+            $old_id = get_user_meta($user->ID, 'profile_image_id', true);
+            if ($old_id) {
+                wp_delete_attachment($old_id, true);
+            }
+
+            update_user_meta($user->ID, 'profile_image_id', $attachment_id);
+
+            return [
+                'success' => true,
+                'avatar_url' => wp_get_attachment_url($attachment_id)
+            ];
+        }
+    ]);
+
+    // DELETE /users/me/avatar
+    register_rest_route(HLB_API_NAMESPACE, '/users/me/avatar', [
+        'methods' => 'DELETE',
+        'permission_callback' => 'hlb_require_auth',
+        'callback' => function () {
+            $user = hlb_get_user_from_token();
+            if (!$user) {
+                return new WP_Error('unauthorized', 'Not authenticated', ['status' => 401]);
+            }
+
+            $avatar_id = get_user_meta($user->ID, 'profile_image_id', true);
+            if ($avatar_id) {
+                wp_delete_attachment($avatar_id, true);
+                delete_user_meta($user->ID, 'profile_image_id');
+            }
+
+            return ['success' => true];
+        }
+    ]);
+
+    // GET /users/{id}
+    register_rest_route(HLB_API_NAMESPACE, '/users/(?P<id>\d+)', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = get_user_by('id', (int) $req['id']);
+            if (!$user) {
+                return new WP_Error('not_found', 'User not found', ['status' => 404]);
+            }
+
+            // Return public profile only
+            $profile = hlb_format_user_profile($user);
+            unset($profile['email'], $profile['account_status'], $profile['identity_verification_status']);
+            return $profile;
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       3️⃣ PROPERTY DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // GET /properties
+    register_rest_route(HLB_API_NAMESPACE, '/properties', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'page' => ['type' => 'integer', 'default' => 1],
+            'per_page' => ['type' => 'integer', 'default' => 12, 'maximum' => 50],
+            'search' => ['type' => 'string'],
+            'min_price' => ['type' => 'number'],
+            'max_price' => ['type' => 'number'],
+            'min_guests' => ['type' => 'integer'],
+            'amenities' => ['type' => 'array'],
+            'instant_booking' => ['type' => 'boolean'],
+            'sort' => ['type' => 'string', 'enum' => ['price_asc', 'price_desc', 'rating', 'newest'], 'default' => 'newest']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $args = [
+                'post_type' => HLB_PROPERTY_POST_TYPE,
+                'post_status' => 'publish',
+                'posts_per_page' => (int) $req['per_page'],
+                'paged' => (int) $req['page'],
+                'meta_query' => [['key' => 'property_status', 'value' => HLB_PROPERTY_STATUS_APPROVED]]
+            ];
+
+            // Search
+            if ($req['search']) {
+                $args['s'] = sanitize_text_field($req['search']);
+            }
+
+            // Price filter
+            if ($req['min_price'] !== null || $req['max_price'] !== null) {
+                $args['meta_query'][] = [
+                    'key' => 'price_per_night',
+                    'value' => [(float) ($req['min_price'] ?: 0), (float) ($req['max_price'] ?: PHP_FLOAT_MAX)],
+                    'type' => 'NUMERIC',
+                    'compare' => 'BETWEEN'
+                ];
+            }
+
+            // Guests filter
+            if ($req['min_guests']) {
+                $args['meta_query'][] = [
+                    'key' => 'max_guests',
+                    'value' => (int) $req['min_guests'],
+                    'type' => 'NUMERIC',
+                    'compare' => '>='
+                ];
+            }
+
+            // Amenities filter
+            if ($req['amenities'] && is_array($req['amenities'])) {
+                $amenities = array_map('sanitize_text_field', $req['amenities']);
+                foreach ($amenities as $amenity) {
+                    $args['meta_query'][] = [
+                        'key' => 'amenities',
+                        'value' => '"' . $amenity . '"',
+                        'compare' => 'LIKE'
+                    ];
+                }
+            }
+
+            // Instant booking
+            if ($req['instant_booking'] !== null) {
+                $args['meta_query'][] = [
+                    'key' => 'instant_booking',
+                    'value' => $req['instant_booking'] ? '1' : '0'
+                ];
+            }
+
+            // Sorting
+            switch ($req['sort']) {
+                case 'price_asc':
+                    $args['meta_key'] = 'price_per_night';
+                    $args['orderby'] = 'meta_value_num';
+                    $args['order'] = 'ASC';
+                    break;
+                case 'price_desc':
+                    $args['meta_key'] = 'price_per_night';
+                    $args['orderby'] = 'meta_value_num';
+                    $args['order'] = 'DESC';
+                    break;
+                case 'rating':
+                    $args['meta_key'] = 'average_rating';
+                    $args['orderby'] = 'meta_value_num';
+                    $args['order'] = 'DESC';
+                    break;
+                default:
+                    $args['orderby'] = 'date';
+                    $args['order'] = 'DESC';
+            }
+
+            $query = new WP_Query($args);
+            $properties = array_map('hlb_format_property', $query->posts);
+
+            return [
+                'data' => $properties,
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'per_page' => (int) $req['per_page'],
+                    'total_items' => $query->found_posts,
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // GET /properties/{id}
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $post = get_post((int) $req['id']);
+            if (!$post || $post->post_type !== HLB_PROPERTY_POST_TYPE) {
+                return new WP_Error('not_found', 'Property not found', ['status' => 404]);
+            }
+
+            $status = get_field('property_status', $post->ID);
+            $is_owner = hlb_get_user_from_token() && get_current_user_id() === (int) $post->post_author;
+
+            // Only show approved properties publicly, or to owner/admin
+            if ($status !== HLB_PROPERTY_STATUS_APPROVED && !$is_owner && !current_user_can('manage_options')) {
+                return new WP_Error('forbidden', 'Property not available', ['status' => 403]);
+            }
+
+            return hlb_format_property($post);
+        }
+    ]);
+
+    // POST /properties (Host only, email verified)
+    register_rest_route(HLB_API_NAMESPACE, '/properties', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host') && hlb_require_email_verified();
+        },
+        'args' => [
+            'title' => ['required' => true, 'type' => 'string'],
+            'description' => ['required' => true, 'type' => 'string'],
+            'price_per_night' => ['required' => true, 'type' => 'number', 'minimum' => 1],
+            'max_guests' => ['required' => true, 'type' => 'integer', 'minimum' => 1],
+            'bedrooms' => ['type' => 'integer', 'default' => 1],
+            'bathrooms' => ['type' => 'number', 'default' => 1],
+            'address' => ['type' => 'string'],
+            'coordinates' => ['type' => 'object'],
+            'amenities' => ['type' => 'array'],
+            'house_rules' => ['type' => 'string'],
+            'cancellation_policy' => ['type' => 'string', 'default' => 'moderate'],
+            'instant_booking' => ['type' => 'boolean', 'default' => false],
+            'cleaning_fee' => ['type' => 'number', 'default' => 0],
+            'service_fee_percent' => ['type' => 'number', 'default' => 14]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+
+            $property_id = wp_insert_post([
+                'post_type' => HLB_PROPERTY_POST_TYPE,
+                'post_status' => 'publish',
+                'post_title' => sanitize_text_field($req['title']),
+                'post_content' => sanitize_textarea_field($req['description']),
+                'post_author' => $user->ID
+            ]);
+
+            if (is_wp_error($property_id)) {
+                return new WP_Error('creation_failed', 'Could not create property', ['status' => 500]);
+            }
+
+            // Update ACF fields
+            $fields = [
+                'price_per_night' => (float) $req['price_per_night'],
+                'max_guests' => (int) $req['max_guests'],
+                'bedrooms' => (int) $req['bedrooms'],
+                'bathrooms' => (float) $req['bathrooms'],
+                'address' => sanitize_text_field($req['address']),
+                'coordinates' => $req['coordinates'],
+                'amenities' => array_map('sanitize_text_field', $req['amenities'] ?: []),
+                'house_rules' => sanitize_textarea_field($req['house_rules']),
+                'cancellation_policy' => sanitize_text_field($req['cancellation_policy']),
+                'instant_booking' => (bool) $req['instant_booking'],
+                'cleaning_fee' => (float) $req['cleaning_fee'],
+                'service_fee_percent' => (float) $req['service_fee_percent'],
+                'property_status' => HLB_PROPERTY_STATUS_PENDING
+            ];
+
+            foreach ($fields as $key => $value) {
+                update_field($key, $value, $property_id);
+            }
+
+            // Notify admin for review
+            hlb_create_notification(1, 'admin_property_review', 'New Property Submitted', "Property #{$property_id} pending approval");
+
+            return [
+                'success' => true,
+                'property_id' => $property_id,
+                'status' => HLB_PROPERTY_STATUS_PENDING,
+                'message' => 'Property submitted for review'
+            ];
+        }
+    ]);
+
+    // PUT /properties/{id}
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)', [
+        'methods' => 'PUT',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host') && hlb_require_email_verified();
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'title' => ['type' => 'string'],
+            'description' => ['type' => 'string'],
+            'price_per_night' => ['type' => 'number'],
+            'max_guests' => ['type' => 'integer'],
+            'status' => ['type' => 'string', 'enum' => [HLB_PROPERTY_STATUS_DRAFT, HLB_PROPERTY_STATUS_PENDING]]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['id'];
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized to edit this property', ['status' => 403]);
+            }
+
+            $update_data = ['ID' => $property_id];
+            if ($req['title']) $update_data['post_title'] = sanitize_text_field($req['title']);
+            if ($req['description']) $update_data['post_content'] = sanitize_textarea_field($req['description']);
+
+            if (!empty($update_data)) {
+                wp_update_post($update_data);
+            }
+
+            // Update fields
+            if ($req['price_per_night'] !== null) {
+                update_field('price_per_night', (float) $req['price_per_night'], $property_id);
+            }
+            if ($req['max_guests'] !== null) {
+                update_field('max_guests', (int) $req['max_guests'], $property_id);
+            }
+            if ($req['status']) {
+                update_field('property_status', sanitize_text_field($req['status']), $property_id);
+            }
+
+            return ['success' => true, 'property' => hlb_format_property(get_post($property_id))];
+        }
+    ]);
+
+    // DELETE /properties/{id}
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)', [
+        'methods' => 'DELETE',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['id'];
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            // Soft delete: mark as suspended instead of hard delete
+            update_field('property_status', HLB_PROPERTY_STATUS_SUSPENDED, $property_id);
+
+            // Cancel any pending bookings
+            $bookings = new WP_Query([
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'meta_query' => [
+                    ['key' => 'property_id', 'value' => $property_id],
+                    ['key' => 'booking_status', 'value' => [HLB_BOOKING_STATUS_PENDING_PAYMENT, HLB_BOOKING_STATUS_PENDING_APPROVAL], 'compare' => 'IN']
+                ]
+            ]);
+
+            foreach ($bookings->posts as $booking) {
+                update_field('booking_status', HLB_BOOKING_STATUS_CANCELLED_HOST, $booking->ID);
+                hlb_create_notification(
+                    get_field('traveler_id', $booking->ID),
+                    'booking_cancelled',
+                    'Booking Cancelled',
+                    'The property you booked is no longer available.'
+                );
+            }
+
+            return ['success' => true, 'message' => 'Property deactivated'];
+        }
+    ]);
+
+    // GET /host/properties
+    register_rest_route(HLB_API_NAMESPACE, '/host/properties', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => [
+            'page' => ['type' => 'integer', 'default' => 1],
+            'status' => ['type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+
+            $args = [
+                'post_type' => HLB_PROPERTY_POST_TYPE,
+                'post_author' => $user->ID,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page']
+            ];
+
+            if ($req['status']) {
+                $args['meta_query'] = [['key' => 'property_status', 'value' => sanitize_text_field($req['status'])]];
+            }
+
+            $query = new WP_Query($args);
+            return [
+                'data' => array_map('hlb_format_property', $query->posts),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // POST /properties/{id}/images
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/images', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['id'];
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $files = $req->get_file_params();
+            if (empty($files['files']) || !is_array($files['files']['name'])) {
+                return new WP_Error('no_files', 'Files required', ['status' => 400]);
+            }
+
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+
+            $gallery_ids = get_field('gallery_images', $property_id) ?: [];
+            $uploaded = [];
+
+            // Handle multiple file upload
+            foreach ($files['files']['name'] as $key => $name) {
+                $_FILES['file'] = [
+                    'name' => $files['files']['name'][$key],
+                    'type' => $files['files']['type'][$key],
+                    'tmp_name' => $files['files']['tmp_name'][$key],
+                    'error' => $files['files']['error'][$key],
+                    'size' => $files['files']['size'][$key]
+                ];
+
+                $attachment_id = media_handle_upload('file', 0, [], ['test_form' => false]);
+                if (!is_wp_error($attachment_id)) {
+                    $gallery_ids[] = $attachment_id;
+                    $uploaded[] = wp_get_attachment_url($attachment_id);
+                }
+            }
+
+            update_field('gallery_images', $gallery_ids, $property_id);
+
+            return ['success' => true, 'uploaded' => $uploaded, 'total_gallery' => count($gallery_ids)];
+        }
+    ]);
+
+    // DELETE /properties/{id}/images/{image_id}
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/images/(?P<image_id>\d+)', [
+        'methods' => 'DELETE',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['id'];
+            $image_id = (int) $req['image_id'];
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $gallery_ids = array_filter(get_field('gallery_images', $property_id) ?: [], fn($id) => $id != $image_id);
+            update_field('gallery_images', $gallery_ids, $property_id);
+            wp_delete_attachment($image_id, true);
+
+            return ['success' => true];
+        }
+    ]);
+
+    // PUT /properties/{id}/status (Admin only)
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/status', [
+        'methods' => 'PUT',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'status' => ['required' => true, 'type' => 'string', 'enum' => [HLB_PROPERTY_STATUS_APPROVED, HLB_PROPERTY_STATUS_REJECTED, HLB_PROPERTY_STATUS_SUSPENDED]],
+            'admin_note' => ['type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $property_id = (int) $req['id'];
+            $new_status = sanitize_text_field($req['status']);
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_type !== HLB_PROPERTY_POST_TYPE) {
+                return new WP_Error('not_found', 'Property not found', ['status' => 404]);
+            }
+
+            update_field('property_status', $new_status, $property_id);
+            if ($req['admin_note']) {
+                update_field('admin_review_note', sanitize_textarea_field($req['admin_note']), $property_id);
+            }
+
+            // Notify host
+            $host_id = (int) $post->post_author;
+            $messages = [
+                HLB_PROPERTY_STATUS_APPROVED => 'Your property has been approved and is now live!',
+                HLB_PROPERTY_STATUS_REJECTED => 'Your property was not approved. Please check admin notes.',
+                HLB_PROPERTY_STATUS_SUSPENDED => 'Your property has been suspended.'
+            ];
+            hlb_create_notification($host_id, 'property_status_update', 'Property Status Updated', $messages[$new_status] ?? '');
+
+            return ['success' => true, 'status' => $new_status];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       4️⃣ AVAILABILITY DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // GET /properties/{id}/availability
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/availability', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'check_in' => ['type' => 'string', 'format' => 'date'],
+            'check_out' => ['type' => 'string', 'format' => 'date'],
+            'guests' => ['type' => 'integer']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $property_id = (int) $req['id'];
+            $post = get_post($property_id);
+            if (!$post) {
+                return new WP_Error('not_found', 'Property not found', ['status' => 404]);
+            }
+
+            $min_stay = (int) get_field('minimum_stay', $property_id) ?: 1;
+            $max_stay = (int) get_field('maximum_stay', $property_id) ?: 30;
+            $advance_notice = (int) get_field('advance_booking_days', $property_id) ?: 0;
+            $blocked_dates = get_field('blocked_dates', $property_id) ?: [];
+
+            // If date range requested, check availability
+            if ($req['check_in'] && $req['check_out']) {
+                $check_in = strtotime(sanitize_text_field($req['check_in']));
+                $check_out = strtotime(sanitize_text_field($req['check_out']));
+                $nights = ($check_out - $check_in) / 86400;
+
+                if ($check_out <= $check_in) {
+                    return new WP_Error('invalid_dates', 'Check-out must be after check-in', ['status' => 400]);
+                }
+                if ($nights < $min_stay) {
+                    return new WP_Error('min_stay', "Minimum stay is {$min_stay} nights", ['status' => 400]);
+                }
+                if ($nights > $max_stay) {
+                    return new WP_Error('max_stay', "Maximum stay is {$max_stay} nights", ['status' => 400]);
+                }
+                if ($check_in < strtotime("+{$advance_notice} days")) {
+                    return new WP_Error('advance_notice', "Booking requires {$advance_notice} days advance notice", ['status' => 400]);
+                }
+
+                // Check blocked dates
+                for ($t = $check_in; $t < $check_out; $t += 86400) {
+                    $date = date('Y-m-d', $t);
+                    if (in_array($date, $blocked_dates)) {
+                        return new WP_Error('date_blocked', "Date {$date} is not available", ['status' => 409]);
+                    }
+                }
+
+                // Check existing bookings (confirmed only)
+                $existing = new WP_Query([
+                    'post_type' => HLB_BOOKING_POST_TYPE,
+                    'meta_query' => [
+                        ['key' => 'property_id', 'value' => $property_id],
+                        ['key' => 'booking_status', 'value' => HLB_BOOKING_STATUS_CONFIRMED]
+                    ]
+                ]);
+
+                foreach ($existing->posts as $booking) {
+                    $b_in = strtotime(get_field('check_in_date', $booking->ID));
+                    $b_out = strtotime(get_field('check_out_date', $booking->ID));
+
+                    // Overlap detection
+                    if ($check_in < $b_out && $check_out > $b_in) {
+                        return new WP_Error('date_conflict', 'Dates conflict with existing booking', ['status' => 409]);
+                    }
+                }
+
+                // Calculate price
+                $base_price = (float) get_field('price_per_night', $property_id);
+                $cleaning_fee = (float) get_field('cleaning_fee', $property_id);
+                $service_percent = (float) get_field('service_fee_percent', $property_id) ?: 14;
+
+                $subtotal = $base_price * $nights;
+                $service_fee = $subtotal * ($service_percent / 100);
+                $taxes = $subtotal * 0.1; // Example tax rate
+                $total = $subtotal + $cleaning_fee + $service_fee + $taxes;
+
+                return [
+                    'available' => true,
+                    'property_id' => $property_id,
+                    'check_in' => date('Y-m-d', $check_in),
+                    'check_out' => date('Y-m-d', $check_out),
+                    'nights' => $nights,
+                    'pricing' => [
+                        'base_price' => $base_price,
+                        'nights' => $nights,
+                        'subtotal' => $subtotal,
+                        'cleaning_fee' => $cleaning_fee,
+                        'service_fee' => $service_fee,
+                        'taxes' => $taxes,
+                        'total' => $total,
+                        'currency' => 'USD'
+                    ],
+                    'rules' => [
+                        'min_stay' => $min_stay,
+                        'max_stay' => $max_stay,
+                        'advance_notice' => $advance_notice,
+                        'instant_booking' => (bool) get_field('instant_booking', $property_id),
+                        'cancellation_policy' => get_field('cancellation_policy', $property_id)
+                    ]
+                ];
+            }
+
+            // Return calendar view
+            return [
+                'property_id' => $property_id,
+                'blocked_dates' => $blocked_dates,
+                'min_stay' => $min_stay,
+                'max_stay' => $max_stay,
+                'booking_window' => [
+                    'advance_days' => $advance_notice,
+                    'max_advance_days' => (int) get_field('max_advance_booking_days', $property_id) ?: 365
+                ]
+            ];
+        }
+    ]);
+
+    // POST /properties/{id}/block-dates
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/block-dates', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'dates' => ['required' => true, 'type' => 'array', 'items' => ['type' => 'string', 'format' => 'date']],
+            'reason' => ['type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['id'];
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $blocked = get_field('blocked_dates', $property_id) ?: [];
+            $new_dates = array_map('sanitize_text_field', $req['dates']);
+            $blocked = array_unique(array_merge($blocked, $new_dates));
+
+            update_field('blocked_dates', $blocked, $property_id);
+            if ($req['reason']) {
+                update_field('blocked_dates_reason', sanitize_textarea_field($req['reason']), $property_id);
+            }
+
+            return ['success' => true, 'blocked_count' => count($blocked)];
+        }
+    ]);
+
+    // DELETE /properties/{id}/block-dates
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/block-dates', [
+        'methods' => 'DELETE',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'dates' => ['required' => true, 'type' => 'array']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['id'];
+            $post = get_post($property_id);
+
+            if (!$post || $post->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $blocked = get_field('blocked_dates', $property_id) ?: [];
+            $remove = array_map('sanitize_text_field', $req['dates']);
+            $blocked = array_diff($blocked, $remove);
+
+            update_field('blocked_dates', array_values($blocked), $property_id);
+
+            return ['success' => true, 'blocked_count' => count($blocked)];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       5️⃣ BOOKING DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // POST /bookings
+    register_rest_route(HLB_API_NAMESPACE, '/bookings', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('traveler') && hlb_require_email_verified();
+        },
+        'args' => [
+            'property_id' => ['required' => true, 'type' => 'integer'],
+            'check_in' => ['required' => true, 'type' => 'string', 'format' => 'date'],
+            'check_out' => ['required' => true, 'type' => 'string', 'format' => 'date'],
+            'guests' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $property_id = (int) $req['property_id'];
+            $property = get_post($property_id);
+
+            if (!$property || $property->post_type !== HLB_PROPERTY_POST_TYPE) {
+                return new WP_Error('not_found', 'Property not found', ['status' => 404]);
+            }
+
+            // Reuse availability check logic
+            $availability = rest_do_request(new WP_REST_Request('GET', '/api/v1/properties/' . $property_id . '/availability', [
+                'check_in' => $req['check_in'],
+                'check_out' => $req['check_out'],
+                'guests' => $req['guests']
+            ]));
+
+            if ($availability->is_error()) {
+                return $availability->as_error();
+            }
+
+            $pricing = $availability->data['pricing'];
+            $instant_booking = $availability->data['rules']['instant_booking'];
+
+            // Create booking
+            $booking_id = wp_insert_post([
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'post_status' => 'publish',
+                'post_title' => 'Booking #' . time(),
+                'post_author' => $property->post_author // Host is author for easy querying
+            ]);
+
+            if (is_wp_error($booking_id)) {
+                return new WP_Error('creation_failed', 'Could not create booking', ['status' => 500]);
+            }
+
+            // Update fields
+            update_field('traveler_id', $user->ID, $booking_id);
+            update_field('property_id', $property_id, $booking_id);
+            update_field('check_in_date', sanitize_text_field($req['check_in']), $booking_id);
+            update_field('check_out_date', sanitize_text_field($req['check_out']), $booking_id);
+            update_field('guest_count', (int) $req['guests'], $booking_id);
+            update_field('total_price', $pricing['total'], $booking_id);
+            update_field('service_fee', $pricing['service_fee'], $booking_id);
+            update_field('taxes', $pricing['taxes'], $booking_id);
+            update_field('booking_status', $instant_booking ? HLB_BOOKING_STATUS_CONFIRMED : HLB_BOOKING_STATUS_PENDING_APPROVAL, $booking_id);
+            update_field('payment_status', HLB_PAYMENT_STATUS_INTENT, $booking_id);
+            update_field('booking_expires_at', time() + 15 * MINUTE_IN_SECONDS, $booking_id); // Payment window
+
+            // Calculate cancellation deadline
+            $policy = get_field('cancellation_policy', $property_id);
+            $check_in_ts = strtotime($req['check_in']);
+            $deadline = $policy === 'strict' ? $check_in_ts - 7 * DAY_IN_SECONDS : $check_in_ts - DAY_IN_SECONDS;
+            update_field('cancellation_deadline', date('Y-m-d H:i:s', $deadline), $booking_id);
+
+            // Notify host if not instant booking
+            if (!$instant_booking) {
+                hlb_create_notification(
+                    $property->post_author,
+                    'booking_request',
+                    'New Booking Request',
+                    "Traveler {$user->display_name} requested booking #{$booking_id}"
+                );
+            }
+
+            $status = $instant_booking ? HLB_BOOKING_STATUS_CONFIRMED : HLB_BOOKING_STATUS_PENDING_APPROVAL;
+
+            return [
+                'success' => true,
+                'booking_id' => $booking_id,
+                'booking_status' => $status,
+                'payment_required' => true,
+                'payment_deadline' => date('c', time() + 15 * MINUTE_IN_SECONDS),
+                'pricing' => $pricing,
+                'next_step' => $instant_booking ? 'payment' : 'await_host_approval'
+            ];
+        }
+    ]);
+
+    // GET /bookings/{id}
+    register_rest_route(HLB_API_NAMESPACE, '/bookings/(?P<id>\d+)', [
+        'methods' => 'GET',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking = get_post((int) $req['id']);
+
+            if (!$booking || $booking->post_type !== HLB_BOOKING_POST_TYPE) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $traveler_id = (int) get_field('traveler_id', $booking->ID);
+            $host_id = (int) get_post_field('post_author', $booking->ID);
+
+            if ($user->ID !== $traveler_id && $user->ID !== $host_id && !current_user_can('manage_options')) {
+                return new WP_Error('forbidden', 'Not authorized to view this booking', ['status' => 403]);
+            }
+
+            return hlb_format_booking($booking);
+        }
+    ]);
+
+    // GET /users/me/bookings
+    register_rest_route(HLB_API_NAMESPACE, '/users/me/bookings', [
+        'methods' => 'GET',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => [
+            'role' => ['type' => 'string', 'enum' => ['traveler', 'host'], 'default' => 'traveler'],
+            'status' => ['type' => 'string'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $role = sanitize_text_field($req['role']);
+
+            $args = [
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page'],
+                'meta_query' => []
+            ];
+
+            if ($role === 'traveler') {
+                $args['meta_query'][] = ['key' => 'traveler_id', 'value' => $user->ID];
+            } else {
+                $args['post_author'] = $user->ID;
+            }
+
+            if ($req['status']) {
+                $args['meta_query'][] = ['key' => 'booking_status', 'value' => sanitize_text_field($req['status'])];
+            }
+
+            $query = new WP_Query($args);
+            return [
+                'data' => array_map('hlb_format_booking', $query->posts),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // POST /bookings/{id}/cancel
+    register_rest_route(HLB_API_NAMESPACE, '/bookings/(?P<id>\d+)/cancel', [
+        'methods' => 'POST',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking_id = (int) $req['id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking || $booking->post_type !== HLB_BOOKING_POST_TYPE) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $traveler_id = (int) get_field('traveler_id', $booking->ID);
+            $host_id = (int) $booking->post_author;
+            $status = get_field('booking_status', $booking_id);
+
+            // Only traveler can cancel, and only certain statuses
+            if ($user->ID !== $traveler_id) {
+                return new WP_Error('forbidden', 'Only the traveler can cancel', ['status' => 403]);
+            }
+
+            if (!in_array($status, [HLB_BOOKING_STATUS_PENDING_PAYMENT, HLB_BOOKING_STATUS_PENDING_APPROVAL, HLB_BOOKING_STATUS_CONFIRMED])) {
+                return new WP_Error('invalid_state', 'Booking cannot be cancelled in current state', ['status' => 400]);
+            }
+
+            // Check cancellation policy
+            $deadline = get_field('cancellation_deadline', $booking_id);
+            $cancellation_fee = 0;
+
+            if ($status === HLB_BOOKING_STATUS_CONFIRMED && time() > strtotime($deadline)) {
+                // Late cancellation: charge fee
+                $total = (float) get_field('total_price', $booking_id);
+                $cancellation_fee = $total * 0.5; // 50% penalty example
+            }
+
+            $new_status = HLB_BOOKING_STATUS_CANCELLED_TRAVELER;
+            update_field('booking_status', $new_status, $booking_id);
+            update_field('cancellation_fee', $cancellation_fee, $booking_id);
+
+            // Process refund if payment was captured
+            $payment_status = get_field('payment_status', $booking_id);
+            if ($payment_status === HLB_PAYMENT_STATUS_CAPTURED && $cancellation_fee < (float) get_field('total_price', $booking_id)) {
+                // In production: call payment provider refund API
+                update_field('payment_status', HLB_PAYMENT_STATUS_REFUNDED, $booking_id);
+            }
+
+            // Notify host
+            hlb_create_notification($host_id, 'booking_cancelled', 'Booking Cancelled', "Traveler cancelled booking #{$booking_id}");
+
+            return [
+                'success' => true,
+                'booking_status' => $new_status,
+                'cancellation_fee' => $cancellation_fee,
+                'refund_amount' => max(0, (float) get_field('total_price', $booking_id) - $cancellation_fee)
+            ];
+        }
+    ]);
+
+    // POST /bookings/{id}/approve (Host)
+    register_rest_route(HLB_API_NAMESPACE, '/bookings/(?P<id>\d+)/approve', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking_id = (int) $req['id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking || $booking->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $status = get_field('booking_status', $booking_id);
+            if ($status !== HLB_BOOKING_STATUS_PENDING_APPROVAL) {
+                return new WP_Error('invalid_state', 'Booking is not pending approval', ['status' => 400]);
+            }
+
+            update_field('booking_status', HLB_BOOKING_STATUS_CONFIRMED, $booking_id);
+
+            // Notify traveler
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            hlb_create_notification($traveler_id, 'booking_confirmed', 'Booking Confirmed!', "Your booking #{$booking_id} has been confirmed by the host.");
+
+            return ['success' => true, 'booking_status' => HLB_BOOKING_STATUS_CONFIRMED];
+        }
+    ]);
+
+    // POST /bookings/{id}/reject (Host)
+    register_rest_route(HLB_API_NAMESPACE, '/bookings/(?P<id>\d+)/reject', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'reason' => ['type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking_id = (int) $req['id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking || $booking->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $status = get_field('booking_status', $booking_id);
+            if ($status !== HLB_BOOKING_STATUS_PENDING_APPROVAL) {
+                return new WP_Error('invalid_state', 'Booking is not pending approval', ['status' => 400]);
+            }
+
+            update_field('booking_status', HLB_BOOKING_STATUS_CANCELLED_HOST, $booking_id);
+            if ($req['reason']) {
+                update_field('cancellation_reason', sanitize_textarea_field($req['reason']), $booking_id);
+            }
+
+            // Notify traveler
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            hlb_create_notification($traveler_id, 'booking_rejected', 'Booking Request Declined', "The host declined your booking #{$booking_id}" . ($req['reason'] ? ": {$req['reason']}" : ""));
+
+            return ['success' => true, 'booking_status' => HLB_BOOKING_STATUS_CANCELLED_HOST];
+        }
+    ]);
+
+    // GET /host/bookings
+    register_rest_route(HLB_API_NAMESPACE, '/host/bookings', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => [
+            'status' => ['type' => 'string'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+
+            $args = [
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'post_author' => $user->ID,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page']
+            ];
+
+            if ($req['status']) {
+                $args['meta_query'] = [['key' => 'booking_status', 'value' => sanitize_text_field($req['status'])]];
+            }
+
+            $query = new WP_Query($args);
+            return [
+                'data' => array_map('hlb_format_booking', $query->posts),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       6️⃣ PAYMENT DOMAIN (Mock Implementation)
+    -------------------------------------------------------------------------- */
+
+    // POST /payments/intent
+    register_rest_route(HLB_API_NAMESPACE, '/payments/intent', [
+        'methods' => 'POST',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => [
+            'booking_id' => ['required' => true, 'type' => 'integer'],
+            'idempotency_key' => ['type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking_id = (int) $req['booking_id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking || $booking->post_type !== HLB_BOOKING_POST_TYPE) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $traveler_id = (int) get_field('traveler_id', $booking->ID);
+            if ($user->ID !== $traveler_id) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            $booking_status = get_field('booking_status', $booking_id);
+            if (!in_array($booking_status, [HLB_BOOKING_STATUS_PENDING_PAYMENT, HLB_BOOKING_STATUS_CONFIRMED])) {
+                return new WP_Error('invalid_state', 'Booking not ready for payment', ['status' => 400]);
+            }
+
+            // Idempotency check
+            if ($req['idempotency_key']) {
+                $existing = get_post_meta($booking_id, '_payment_idempotency_' . sanitize_text_field($req['idempotency_key']), true);
+                if ($existing) {
+                    return ['payment_intent_id' => $existing, 'status' => 'already_processed'];
+                }
+            }
+
+            $total = (float) get_field('total_price', $booking_id);
+            $intent_id = 'pi_mock_' . uniqid();
+
+            // Store payment intent
+            update_field('payment_intent_id', $intent_id, $booking_id);
+            update_field('payment_status', HLB_PAYMENT_STATUS_INTENT, $booking_id);
+            update_field('payment_amount', $total, $booking_id);
+
+            if ($req['idempotency_key']) {
+                update_post_meta($booking_id, '_payment_idempotency_' . sanitize_text_field($req['idempotency_key']), $intent_id);
+            }
+
+            return [
+                'payment_intent_id' => $intent_id,
+                'amount' => $total,
+                'currency' => 'USD',
+                'status' => 'requires_confirmation',
+                'client_secret' => 'mock_secret_' . substr(md5($intent_id), 0, 16)
+            ];
+        }
+    ]);
+
+    // POST /payments/confirm
+    register_rest_route(HLB_API_NAMESPACE, '/payments/confirm', [
+        'methods' => 'POST',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => [
+            'payment_intent_id' => ['required' => true, 'type' => 'string'],
+            'booking_id' => ['required' => true, 'type' => 'integer']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking_id = (int) $req['booking_id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $intent_id = sanitize_text_field($req['payment_intent_id']);
+            $stored_intent = get_field('payment_intent_id', $booking_id);
+
+            if ($stored_intent !== $intent_id) {
+                return new WP_Error('invalid_intent', 'Payment intent mismatch', ['status' => 400]);
+            }
+
+            // Mock successful payment
+            update_field('payment_status', HLB_PAYMENT_STATUS_CAPTURED, $booking_id);
+            update_field('payment_confirmed_at', current_time('mysql'), $booking_id);
+
+            // Update booking status if needed
+            $booking_status = get_field('booking_status', $booking_id);
+            if ($booking_status === HLB_BOOKING_STATUS_PENDING_PAYMENT) {
+                $instant = (bool) get_field('instant_booking', get_field('property_id', $booking_id));
+                update_field('booking_status', $instant ? HLB_BOOKING_STATUS_CONFIRMED : HLB_BOOKING_STATUS_PENDING_APPROVAL, $booking_id);
+            }
+
+            // Record transaction
+            $transaction_id = 'txn_' . uniqid();
+            add_post_meta($booking_id, 'payment_transactions', [
+                'id' => $transaction_id,
+                'intent_id' => $intent_id,
+                'amount' => get_field('total_price', $booking_id),
+                'status' => 'captured',
+                'timestamp' => time()
+            ]);
+
+            // Notify parties
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            $host_id = $booking->post_author;
+
+            hlb_create_notification($traveler_id, 'payment_success', 'Payment Confirmed', "Payment for booking #{$booking_id} was successful.");
+            if ($booking_status !== HLB_BOOKING_STATUS_CONFIRMED) {
+                hlb_create_notification($host_id, 'payment_received', 'Payment Received', "New payment for booking #{$booking_id}. Please confirm.");
+            }
+
+            return [
+                'success' => true,
+                'payment_status' => HLB_PAYMENT_STATUS_CAPTURED,
+                'booking_status' => get_field('booking_status', $booking_id),
+                'transaction_id' => $transaction_id
+            ];
+        }
+    ]);
+
+    // POST /payments/webhook (Mock endpoint for external providers)
+    register_rest_route(HLB_API_NAMESPACE, '/payments/webhook', [
+        'methods' => 'POST',
+        'permission_callback' => '__return_true', // In production: verify webhook signature
+        'callback' => function (WP_REST_Request $req) {
+            // Mock: accept any webhook for testing
+            // In production: verify signature, parse event type, update booking/payment status
+            return ['received' => true];
+        }
+    ]);
+
+    // GET /payments/{booking_id}
+    register_rest_route(HLB_API_NAMESPACE, '/payments/(?P<booking_id>\d+)', [
+        'methods' => 'GET',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => ['booking_id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking = get_post((int) $req['booking_id']);
+
+            if (!$booking || $booking->post_type !== HLB_BOOKING_POST_TYPE) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $traveler_id = (int) get_field('traveler_id', $booking->ID);
+            $host_id = $booking->post_author;
+
+            if ($user->ID !== $traveler_id && $user->ID !== $host_id && !current_user_can('manage_options')) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            return [
+                'booking_id' => $booking->ID,
+                'payment_intent_id' => get_field('payment_intent_id', $booking->ID),
+                'payment_status' => get_field('payment_status', $booking->ID),
+                'amount' => (float) get_field('total_price', $booking->ID),
+                'currency' => 'USD',
+                'confirmed_at' => get_field('payment_confirmed_at', $booking->ID),
+                'transactions' => get_post_meta($booking->ID, 'payment_transactions', false)
+            ];
+        }
+    ]);
+
+    // POST /payments/refund
+    register_rest_route(HLB_API_NAMESPACE, '/payments/refund', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && (hlb_require_role('host') || current_user_can('manage_options'));
+        },
+        'args' => [
+            'booking_id' => ['required' => true, 'type' => 'integer'],
+            'amount' => ['type' => 'number'],
+            'reason' => ['type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $booking_id = (int) $req['booking_id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $payment_status = get_field('payment_status', $booking_id);
+            if ($payment_status !== HLB_PAYMENT_STATUS_CAPTURED) {
+                return new WP_Error('invalid_state', 'Payment not captured, cannot refund', ['status' => 400]);
+            }
+
+            $total = (float) get_field('total_price', $booking_id);
+            $refund_amount = $req['amount'] !== null ? (float) $req['amount'] : $total;
+
+            if ($refund_amount > $total) {
+                return new WP_Error('invalid_amount', 'Refund amount exceeds payment', ['status' => 400]);
+            }
+
+            // Mock refund
+            update_field('payment_status', $refund_amount >= $total ? HLB_PAYMENT_STATUS_REFUNDED : HLB_PAYMENT_STATUS_CAPTURED, $booking_id);
+            update_field('refunded_amount', (float) get_field('refunded_amount', $booking_id) + $refund_amount, $booking_id);
+
+            // Record refund transaction
+            add_post_meta($booking_id, 'payment_transactions', [
+                'id' => 'ref_' . uniqid(),
+                'type' => 'refund',
+                'amount' => $refund_amount,
+                'reason' => sanitize_text_field($req['reason']),
+                'timestamp' => time()
+            ]);
+
+            // Notify traveler
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            hlb_create_notification($traveler_id, 'refund_processed', 'Refund Processed', "Refund of \${$refund_amount} has been processed for booking #{$booking_id}");
+
+            return [
+                'success' => true,
+                'refunded_amount' => $refund_amount,
+                'remaining_balance' => $total - (float) get_field('refunded_amount', $booking_id),
+                'payment_status' => get_field('payment_status', $booking_id)
+            ];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       7️⃣ REVIEW & RATING DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // POST /reviews
+    register_rest_route(HLB_API_NAMESPACE, '/reviews', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('traveler');
+        },
+        'args' => [
+            'booking_id' => ['required' => true, 'type' => 'integer'],
+            'rating' => ['required' => true, 'type' => 'integer', 'minimum' => 1, 'maximum' => 5],
+            'comment' => ['type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $booking_id = (int) $req['booking_id'];
+            $booking = get_post($booking_id);
+
+            if (!$booking || $booking->post_type !== HLB_BOOKING_POST_TYPE) {
+                return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+            }
+
+            $traveler_id = (int) get_field('traveler_id', $booking->ID);
+            if ($user->ID !== $traveler_id) {
+                return new WP_Error('forbidden', 'Only the traveler can review this booking', ['status' => 403]);
+            }
+
+            // Check booking status and completion
+            $booking_status = get_field('booking_status', $booking_id);
+            $check_out = get_field('check_out_date', $booking_id);
+
+            if ($booking_status !== HLB_BOOKING_STATUS_COMPLETED) {
+                return new WP_Error('not_allowed', 'Can only review completed bookings', ['status' => 403]);
+            }
+
+            if (strtotime($check_out) > time()) {
+                return new WP_Error('too_early', 'Cannot review before checkout date', ['status' => 403]);
+            }
+
+            // Prevent duplicate reviews
+            if (get_field('reviewed', $booking_id)) {
+                return new WP_Error('duplicate', 'Review already submitted for this booking', ['status' => 409]);
+            }
+
+            $property_id = (int) get_field('property_id', $booking_id);
+            $rating = (int) $req['rating'];
+            $comment = sanitize_textarea_field($req['comment']);
+
+            // Create review
+            $review_id = wp_insert_post([
+                'post_type' => HLB_REVIEW_POST_TYPE,
+                'post_status' => 'publish',
+                'post_title' => 'Review for Property #' . $property_id,
+                'post_content' => $comment,
+                'post_author' => $user->ID
+            ]);
+
+            update_field('rating', $rating, $review_id);
+            update_field('property_id', $property_id, $review_id);
+            update_field('booking_id', $booking_id, $review_id);
+            update_field('reviewed', true, $booking_id);
+
+            // Update property average rating
+            $reviews = new WP_Query([
+                'post_type' => HLB_REVIEW_POST_TYPE,
+                'meta_query' => [['key' => 'property_id', 'value' => $property_id]],
+                'fields' => 'ids'
+            ]);
+
+            $ratings = array_map(fn($id) => (int) get_field('rating', $id), $reviews->posts);
+            $average = $ratings ? array_sum($ratings) / count($ratings) : 0;
+
+            update_field('average_rating', round($average, 2), $property_id);
+            update_field('total_reviews', count($ratings), $property_id);
+
+            // Update host average rating
+            $host_id = get_post_field('post_author', $property_id);
+            $host_reviews = new WP_Query([
+                'post_type' => HLB_REVIEW_POST_TYPE,
+                'meta_query' => [
+                    ['key' => 'property_id', 'value' => $property_id],
+                    ['key' => 'post_author', 'compare' => 'EXISTS']
+                ]
+            ]);
+            // Simplified: in production, query all properties by host
+            $host_avg = get_user_meta($host_id, 'host_average_rating', true) ?: 0;
+            $host_total = (int) get_user_meta($host_id, 'host_total_reviews', true);
+            $new_avg = (($host_avg * $host_total) + $rating) / ($host_total + 1);
+
+            update_user_meta($host_id, 'host_average_rating', round($new_avg, 2));
+            update_user_meta($host_id, 'host_total_reviews', $host_total + 1);
+
+            // Notify host
+            hlb_create_notification($host_id, 'new_review', 'New Review Received', "You received a {$rating}-star review for booking #{$booking_id}");
+
+            return [
+                'success' => true,
+                'review_id' => $review_id,
+                'property_rating_updated' => round($average, 2)
+            ];
+        }
+    ]);
+
+    // GET /properties/{id}/reviews
+    register_rest_route(HLB_API_NAMESPACE, '/properties/(?P<id>\d+)/reviews', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $property_id = (int) $req['id'];
+
+            $query = new WP_Query([
+                'post_type' => HLB_REVIEW_POST_TYPE,
+                'meta_query' => [['key' => 'property_id', 'value' => $property_id]],
+                'posts_per_page' => 10,
+                'paged' => (int) $req['page'],
+                'orderby' => 'date',
+                'order' => 'DESC'
+            ]);
+
+            $reviews = [];
+            foreach ($query->posts as $post) {
+                $author = get_userdata($post->post_author);
+                $reviews[] = [
+                    'id' => $post->ID,
+                    'author_name' => $author ? $author->display_name : 'Anonymous',
+                    'author_avatar' => $author ? get_avatar_url($author->ID) : null,
+                    'rating' => (int) get_field('rating', $post->ID),
+                    'comment' => $post->post_content,
+                    'created_at' => get_the_date('c', $post),
+                    'host_reply' => get_field('host_reply', $post->ID),
+                    'host_reply_at' => get_field('host_reply_date', $post->ID)
+                ];
+            }
+
+            return [
+                'data' => $reviews,
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // GET /users/{id}/reviews
+    register_rest_route(HLB_API_NAMESPACE, '/users/(?P<id>\d+)/reviews', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user_id = (int) $req['id'];
+
+            $reviews = new WP_Query([
+                'post_type' => HLB_REVIEW_POST_TYPE,
+                'author' => $user_id,
+                'posts_per_page' => 10
+            ]);
+
+            return array_map(function ($post) {
+                return [
+                    'id' => $post->ID,
+                    'property_id' => (int) get_field('property_id', $post->ID),
+                    'property_title' => get_the_title(get_field('property_id', $post->ID)),
+                    'rating' => (int) get_field('rating', $post->ID),
+                    'comment' => $post->post_content,
+                    'created_at' => get_the_date('c', $post)
+                ];
+            }, $reviews->posts);
+        }
+    ]);
+
+    // POST /reviews/{id}/reply (Host reply)
+    register_rest_route(HLB_API_NAMESPACE, '/reviews/(?P<id>\d+)/reply', [
+        'methods' => 'POST',
+        'permission_callback' => function () {
+            return hlb_require_auth() && hlb_require_role('host');
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'reply' => ['required' => true, 'type' => 'string']
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $review_id = (int) $req['id'];
+            $review = get_post($review_id);
+
+            if (!$review || $review->post_type !== HLB_REVIEW_POST_TYPE) {
+                return new WP_Error('not_found', 'Review not found', ['status' => 404]);
+            }
+
+            $property_id = (int) get_field('property_id', $review_id);
+            $property = get_post($property_id);
+
+            if ($property->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized to reply to this review', ['status' => 403]);
+            }
+
+            update_field('host_reply', sanitize_textarea_field($req['reply']), $review_id);
+            update_field('host_reply_date', current_time('mysql'), $review_id);
+
+            // Notify reviewer
+            $reviewer_id = $review->post_author;
+            hlb_create_notification($reviewer_id, 'host_replied', 'Host Replied to Your Review', "The host responded to your review for property #{$property_id}");
+
+            return ['success' => true, 'reply' => get_field('host_reply', $review_id)];
+        }
+    ]);
+
+    // DELETE /reviews/{id} (Admin/moderation)
+    register_rest_route(HLB_API_NAMESPACE, '/reviews/(?P<id>\d+)', [
+        'methods' => 'DELETE',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $review_id = (int) $req['id'];
+            $review = get_post($review_id);
+
+            if (!$review || $review->post_type !== HLB_REVIEW_POST_TYPE) {
+                return new WP_Error('not_found', 'Review not found', ['status' => 404]);
+            }
+
+            // Soft delete: mark as hidden instead of hard delete
+            update_field('review_hidden', true, $review_id);
+
+            // Recalculate property rating
+            $property_id = (int) get_field('property_id', $review_id);
+            $visible_reviews = new WP_Query([
+                'post_type' => HLB_REVIEW_POST_TYPE,
+                'meta_query' => [
+                    ['key' => 'property_id', 'value' => $property_id],
+                    ['key' => 'review_hidden', 'value' => '1', 'compare' => '!=' OR 'NOT EXISTS']
+                ]
+            ]);
+
+            if ($visible_reviews->have_posts()) {
+                $ratings = array_map(fn($p) => (int) get_field('rating', $p->ID), $visible_reviews->posts);
+                update_field('average_rating', round(array_sum($ratings) / count($ratings), 2), $property_id);
+                update_field('total_reviews', count($ratings), $property_id);
+            }
+
+            return ['success' => true, 'message' => 'Review hidden'];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       8️⃣ ADMIN DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // GET /admin/properties
+    register_rest_route(HLB_API_NAMESPACE, '/admin/properties', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => [
+            'status' => ['type' => 'string'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $args = [
+                'post_type' => HLB_PROPERTY_POST_TYPE,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page']
+            ];
+
+            if ($req['status']) {
+                $args['meta_query'] = [['key' => 'property_status', 'value' => sanitize_text_field($req['status'])]];
+            }
+
+            $query = new WP_Query($args);
+            return [
+                'data' => array_map('hlb_format_property', $query->posts),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // GET /admin/users
+    register_rest_route(HLB_API_NAMESPACE, '/admin/users', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => [
+            'role' => ['type' => 'string'],
+            'status' => ['type' => 'string'],
+            'search' => ['type' => 'string'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $args = [
+                'number' => 20,
+                'paged' => (int) $req['page'],
+                'orderby' => 'registered',
+                'order' => 'DESC'
+            ];
+
+            if ($req['role']) {
+                $args['role'] = sanitize_text_field($req['role']);
+            }
+            if ($req['search']) {
+                $args['search'] = '*' . sanitize_text_field($req['search']) . '*';
+                $args['search_columns'] = ['user_login', 'user_email', 'display_name'];
+            }
+
+            $users = get_users($args);
+            $total = count_users()['total_users'];
+
+            return [
+                'data' => array_map(fn($u) => hlb_format_user_profile($u), $users),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'per_page' => 20,
+                    'total_items' => $total,
+                    'total_pages' => ceil($total / 20)
+                ]
+            ];
+        }
+    ]);
+
+    // PUT /admin/users/{id}/suspend
+    register_rest_route(HLB_API_NAMESPACE, '/admin/users/(?P<id>\d+)/suspend', [
+        'methods' => 'PUT',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => [
+            'id' => ['required' => true, 'type' => 'integer'],
+            'reason' => ['type' => 'string'],
+            'duration' => ['type' => 'string', 'enum' => ['temporary', 'permanent']]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user_id = (int) $req['id'];
+            $user = get_user_by('id', $user_id);
+
+            if (!$user) {
+                return new WP_Error('not_found', 'User not found', ['status' => 404]);
+            }
+
+            update_user_meta($user_id, 'account_status', 'suspended');
+            update_user_meta($user_id, 'suspension_reason', sanitize_textarea_field($req['reason']));
+            update_user_meta($user_id, 'suspension_date', current_time('mysql'));
+            if ($req['duration'] === 'temporary') {
+                update_user_meta($user_id, 'suspension_expiry', strtotime('+30 days'));
+            }
+
+            // Invalidate tokens
+            delete_user_meta($user_id, 'refresh_token_hash');
+            delete_user_meta($user_id, 'refresh_token_expiry');
+
+            return ['success' => true, 'account_status' => 'suspended'];
+        }
+    ]);
+
+    // GET /admin/bookings
+    register_rest_route(HLB_API_NAMESPACE, '/admin/bookings', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => [
+            'status' => ['type' => 'string'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $args = [
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page']
+            ];
+
+            if ($req['status']) {
+                $args['meta_query'] = [['key' => 'booking_status', 'value' => sanitize_text_field($req['status'])]];
+            }
+
+            $query = new WP_Query($args);
+            return [
+                'data' => array_map('hlb_format_booking', $query->posts),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // GET /admin/payments
+    register_rest_route(HLB_API_NAMESPACE, '/admin/payments', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'args' => [
+            'status' => ['type' => 'string'],
+            'date_from' => ['type' => 'string'],
+            'date_to' => ['type' => 'string'],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $args = [
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page'],
+                'meta_query' => []
+            ];
+
+            if ($req['status']) {
+                $args['meta_query'][] = ['key' => 'payment_status', 'value' => sanitize_text_field($req['status'])];
+            }
+            if ($req['date_from'] || $req['date_to']) {
+                $args['meta_query'][] = [
+                    'key' => 'payment_confirmed_at',
+                    'value' => [
+                        $req['date_from'] ?: '1970-01-01',
+                        $req['date_to'] ?: current_time('Y-m-d')
+                    ],
+                    'type' => 'DATE',
+                    'compare' => 'BETWEEN'
+                ];
+            }
+
+            $query = new WP_Query($args);
+            $payments = [];
+
+            foreach ($query->posts as $post) {
+                $payments[] = [
+                    'booking_id' => $post->ID,
+                    'property_id' => (int) get_field('property_id', $post->ID),
+                    'traveler_id' => (int) get_field('traveler_id', $post->ID),
+                    'amount' => (float) get_field('total_price', $post->ID),
+                    'payment_status' => get_field('payment_status', $post->ID),
+                    'confirmed_at' => get_field('payment_confirmed_at', $post->ID),
+                    'refunded_amount' => (float) get_field('refunded_amount', $post->ID)
+                ];
+            }
+
+            return [
+                'data' => $payments,
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ]
+            ];
+        }
+    ]);
+
+    // GET /admin/metrics
+    register_rest_route(HLB_API_NAMESPACE, '/admin/metrics', [
+        'methods' => 'GET',
+        'permission_callback' => function () {
+            return hlb_require_auth() && current_user_can('manage_options');
+        },
+        'callback' => function () {
+            $property_counts = wp_count_posts(HLB_PROPERTY_POST_TYPE);
+            $booking_counts = wp_count_posts(HLB_BOOKING_POST_TYPE);
+            $user_counts = count_users();
+
+            // Revenue calculation (mock)
+            $confirmed_bookings = new WP_Query([
+                'post_type' => HLB_BOOKING_POST_TYPE,
+                'meta_query' => [
+                    ['key' => 'booking_status', 'value' => HLB_BOOKING_STATUS_CONFIRMED],
+                    ['key' => 'payment_status', 'value' => HLB_PAYMENT_STATUS_CAPTURED]
+                ],
+                'fields' => 'ids',
+                'nopaging' => true
+            ]);
+
+            $total_revenue = 0;
+            foreach ($confirmed_bookings->posts as $id) {
+                $total_revenue += (float) get_field('total_price', $id);
+            }
+
+            return [
+                'users' => [
+                    'total' => $user_counts['total_users'],
+                    'travelers' => count(get_users(['role' => 'traveler'])),
+                    'hosts' => count(get_users(['role' => 'host']))
+                ],
+                'properties' => [
+                    'total' => $property_counts->publish,
+                    'pending_review' => (int) get_posts(['post_type' => HLB_PROPERTY_POST_TYPE, 'meta_key' => 'property_status', 'meta_value' => HLB_PROPERTY_STATUS_PENDING, 'fields' => 'ids', 'nopaging' => true]) ?: 0,
+                    'approved' => (int) get_posts(['post_type' => HLB_PROPERTY_POST_TYPE, 'meta_key' => 'property_status', 'meta_value' => HLB_PROPERTY_STATUS_APPROVED, 'fields' => 'ids', 'nopaging' => true]) ?: 0
+                ],
+                'bookings' => [
+                    'total' => $booking_counts->publish,
+                    'confirmed' => (int) get_posts(['post_type' => HLB_BOOKING_POST_TYPE, 'meta_key' => 'booking_status', 'meta_value' => HLB_BOOKING_STATUS_CONFIRMED, 'fields' => 'ids', 'nopaging' => true]) ?: 0,
+                    'pending' => (int) get_posts(['post_type' => HLB_BOOKING_POST_TYPE, 'meta_key' => 'booking_status', 'meta_value' => HLB_BOOKING_STATUS_PENDING_APPROVAL, 'fields' => 'ids', 'nopaging' => true]) ?: 0
+                ],
+                'revenue' => [
+                    'total_captured' => $total_revenue,
+                    'currency' => 'USD'
+                ],
+                'reviews' => [
+                    'total' => wp_count_posts(HLB_REVIEW_POST_TYPE)->publish,
+                    'average_rating' => 4.7 // Would calculate from actual data
+                ]
+            ];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       9️⃣ NOTIFICATION DOMAIN
+    -------------------------------------------------------------------------- */
+
+    // Helper: Create notification
+    function hlb_create_notification(int $user_id, string $type, string $title, string $message, array $data = []): int {
+        $notification_id = wp_insert_post([
+            'post_type' => HLB_NOTIFICATION_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_content' => $message,
+            'post_author' => $user_id
+        ]);
+
+        if (!is_wp_error($notification_id)) {
+            update_field('notification_user_id', $user_id, $notification_id);
+            update_field('notification_type', $type, $notification_id);
+            update_field('notification_data', $data, $notification_id);
+            update_field('notification_read', false, $notification_id);
+        }
+
+        return is_wp_error($notification_id) ? 0 : $notification_id;
+    }
+
+    // GET /notifications
+    register_rest_route(HLB_API_NAMESPACE, '/notifications', [
+        'methods' => 'GET',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => [
+            'unread_only' => ['type' => 'boolean', 'default' => false],
+            'page' => ['type' => 'integer', 'default' => 1]
+        ],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+
+            $args = [
+                'post_type' => HLB_NOTIFICATION_POST_TYPE,
+                'author' => $user->ID,
+                'posts_per_page' => 20,
+                'paged' => (int) $req['page'],
+                'orderby' => 'date',
+                'order' => 'DESC'
+            ];
+
+            if ($req['unread_only']) {
+                $args['meta_query'] = [['key' => 'notification_read', 'value' => '0']];
+            }
+
+            $query = new WP_Query($args);
+            return [
+                'data' => array_map('hlb_format_notification', $query->posts),
+                'pagination' => [
+                    'current_page' => (int) $req['page'],
+                    'total_pages' => $query->max_num_pages
+                ],
+                'unread_count' => (int) get_posts([
+                    'post_type' => HLB_NOTIFICATION_POST_TYPE,
+                    'author' => $user->ID,
+                    'meta_query' => [['key' => 'notification_read', 'value' => '0']],
+                    'fields' => 'ids',
+                    'nopaging' => true
+                ]) ?: 0
+            ];
+        }
+    ]);
+
+    // PUT /notifications/{id}/read
+    register_rest_route(HLB_API_NAMESPACE, '/notifications/(?P<id>\d+)/read', [
+        'methods' => 'PUT',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $notification = get_post((int) $req['id']);
+
+            if (!$notification || $notification->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            update_field('notification_read', true, $notification->ID);
+
+            return ['success' => true, 'read' => true];
+        }
+    ]);
+
+    // DELETE /notifications/{id}
+    register_rest_route(HLB_API_NAMESPACE, '/notifications/(?P<id>\d+)', [
+        'methods' => 'DELETE',
+        'permission_callback' => 'hlb_require_auth',
+        'args' => ['id' => ['required' => true, 'type' => 'integer']],
+        'callback' => function (WP_REST_Request $req) {
+            $user = hlb_get_user_from_token();
+            $notification = get_post((int) $req['id']);
+
+            if (!$notification || $notification->post_author != $user->ID) {
+                return new WP_Error('forbidden', 'Not authorized', ['status' => 403]);
+            }
+
+            wp_delete_post($notification->ID, true);
+            return ['success' => true];
+        }
+    ]);
+
+    /* -------------------------------------------------------------------------
+       🔟 INFRASTRUCTURE / BACKGROUND JOBS (WP-Cron Handlers)
+    -------------------------------------------------------------------------- */
+
+    // Expire unpaid bookings (15-minute payment window)
+    add_action('hlb_cron_expire_unpaid_bookings', function () {
+        $bookings = new WP_Query([
+            'post_type' => HLB_BOOKING_POST_TYPE,
+            'meta_query' => [
+                ['key' => 'booking_status', 'value' => HLB_BOOKING_STATUS_PENDING_PAYMENT],
+                ['key' => 'booking_expires_at', 'value' => time(), 'compare' => '<', 'type' => 'NUMERIC']
+            ],
+            'fields' => 'ids',
+            'nopaging' => true
+        ]);
+
+        foreach ($bookings->posts as $booking_id) {
+            update_field('booking_status', HLB_BOOKING_STATUS_EXPIRED, $booking_id);
+
+            // Notify traveler
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            hlb_create_notification($traveler_id, 'booking_expired', 'Booking Expired', "Your booking #{$booking_id} expired. Please rebook if still interested.");
+        }
+    });
+
+    // Mark bookings as completed after checkout date
+    add_action('hlb_cron_mark_completed_bookings', function () {
+        $bookings = new WP_Query([
+            'post_type' => HLB_BOOKING_POST_TYPE,
+            'meta_query' => [
+                ['key' => 'booking_status', 'value' => HLB_BOOKING_STATUS_CONFIRMED],
+                ['key' => 'check_out_date', 'value' => date('Y-m-d', strtotime('-1 day')), 'compare' => '<=']
+            ],
+            'fields' => 'ids',
+            'nopaging' => true
+        ]);
+
+        foreach ($bookings->posts as $booking_id) {
+            update_field('booking_status', HLB_BOOKING_STATUS_COMPLETED, $booking_id);
+
+            // Notify traveler they can now review
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            $property_id = (int) get_field('property_id', $booking_id);
+            hlb_create_notification(
+                $traveler_id,
+                'review_invitation',
+                'How was your stay?',
+                "Your stay at " . get_the_title($property_id) . " has ended. Share your experience with a review!"
+            );
+        }
+    });
+
+    // Send booking reminders (24h before check-in)
+    add_action('hlb_cron_send_booking_reminders', function () {
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+        $bookings = new WP_Query([
+            'post_type' => HLB_BOOKING_POST_TYPE,
+            'meta_query' => [
+                ['key' => 'booking_status', 'value' => HLB_BOOKING_STATUS_CONFIRMED],
+                ['key' => 'check_in_date', 'value' => $tomorrow]
+            ],
+            'fields' => 'ids',
+            'nopaging' => true
+        ]);
+
+        foreach ($bookings->posts as $booking_id) {
+            $traveler_id = (int) get_field('traveler_id', $booking_id);
+            $property_id = (int) get_field('property_id', $booking_id);
+
+            hlb_create_notification(
+                $traveler_id,
+                'checkin_reminder',
+                'Check-in Tomorrow!',
+                "Your stay at " . get_the_title($property_id) . " starts tomorrow. Check your booking details for check-in instructions."
+            );
+        }
+    });
+
+    // Clean orphaned data weekly
+    add_action('hlb_cron_clean_orphaned_data', function () {
+        // Delete expired email verification keys
+        $users = get_users(['meta_key' => 'email_verification_expiry', 'meta_value' => time(), 'meta_compare' => '<']);
+        foreach ($users as $user) {
+            delete_user_meta($user->ID, 'email_verification_key');
+            delete_user_meta($user->ID, 'email_verification_expiry');
+        }
+
+        // Clean old read notifications (90 days)
+        $old_notifications = get_posts([
+            'post_type' => HLB_NOTIFICATION_POST_TYPE,
+            'meta_query' => [
+                ['key' => 'notification_read', 'value' => '1'],
+                ['key' => '_post_date', 'value' => date('Y-m-d', strtotime('-90 days')), 'compare' => '<', 'type' => 'DATE']
+            ],
+            'fields' => 'ids',
+            'nopaging' => true
+        ]);
+        foreach ($old_notifications as $id) {
+            wp_delete_post($id, true);
+        }
+    });
+
+    /* -------------------------------------------------------------------------
+       📚 OPENAPI / SWAGGER DOCS
+    -------------------------------------------------------------------------- */
+
+    register_rest_route(HLB_API_NAMESPACE, '/docs', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'callback' => function () {
+            return [
+                'openapi' => '3.0.0',
+                'info' => [
+                    'title' => 'Airbnb Headless API',
+                    'version' => '1.0.0',
+                    'description' => 'Production-ready REST API for headless Airbnb-style platform'
+                ],
+                'servers' => [['url' => rest_url('api/v1')]],
+                'components' => [
+                    'securitySchemes' => [
+                        'bearerAuth' => [
+                            'type' => 'http',
+                            'scheme' => 'bearer',
+                            'bearerFormat' => 'JWT'
+                        ]
+                    ],
+                    'schemas' => [
+                        'Error' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'code' => ['type' => 'string'],
+                                'message' => ['type' => 'string'],
+                                'data' => ['type' => 'object']
+                            ]
+                        ],
+                        'User' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'id' => ['type' => 'integer'],
+                                'email' => ['type' => 'string', 'format' => 'email'],
+                                'name' => ['type' => 'string'],
+                                'roles' => ['type' => 'array', 'items' => ['type' => 'string']],
+                                'avatar_url' => ['type' => 'string', 'format' => 'uri'],
+                                'email_verified' => ['type' => 'boolean']
+                            ]
+                        ],
+                        'Property' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'id' => ['type' => 'integer'],
+                                'title' => ['type' => 'string'],
+                                'price_per_night' => ['type' => 'number'],
+                                'max_guests' => ['type' => 'integer'],
+                                'rating' => ['type' => 'number'],
+                                'featured_image' => ['type' => 'string', 'format' => 'uri']
+                            ]
+                        ],
+                        'Booking' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'id' => ['type' => 'integer'],
+                                'property_id' => ['type' => 'integer'],
+                                'check_in' => ['type' => 'string', 'format' => 'date'],
+                                'check_out' => ['type' => 'string', 'format' => 'date'],
+                                'total_price' => ['type' => 'number'],
+                                'booking_status' => ['type' => 'string']
+                            ]
+                        ]
+                    ]
+                ],
+                'paths' => [
+                    '/auth/register' => [
+                        'post' => [
+                            'summary' => 'Register new user',
+                            'tags' => ['Authentication'],
+                            'requestBody' => [
+                                'required' => true,
+                                'content' => [
+                                    'application/json' => [
+                                        'schema' => [
+                                            'type' => 'object',
+                                            'required' => ['name', 'email', 'password', 'role'],
+                                            'properties' => [
+                                                'name' => ['type' => 'string'],
+                                                'email' => ['type' => 'string', 'format' => 'email'],
+                                                'password' => ['type' => 'string', 'minLength' => 8],
+                                                'role' => ['type' => 'string', 'enum' => ['traveler', 'host']]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            'responses' => [
+                                '200' => ['description' => 'Registration successful'],
+                                '400' => ['$ref' => '#/components/schemas/Error'],
+                                '409' => ['$ref' => '#/components/schemas/Error']
+                            ]
+                        ]
+                    ],
+                    '/auth/login' => [
+                        'post' => [
+                            'summary' => 'Authenticate user',
+                            'tags' => ['Authentication'],
+                            'responses' => [
+                                '200' => [
+                                    'description' => 'JWT tokens',
+                                    'content' => [
+                                        'application/json' => [
+                                            'schema' => [
+                                                'type' => 'object',
+                                                'properties' => [
+                                                    'access_token' => ['type' => 'string'],
+                                                    'refresh_token' => ['type' => 'string'],
+                                                    'expires_in' => ['type' => 'integer'],
+                                                    'user' => ['$ref' => '#/components/schemas/User']
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ],
+                    '/properties' => [
+                        'get' => [
+                            'summary' => 'List properties',
+                            'tags' => ['Properties'],
+                            'parameters' => [
+                                ['name' => 'page', 'in' => 'query', 'schema' => ['type' => 'integer']],
+                                ['name' => 'min_price', 'in' => 'query', 'schema' => ['type' => 'number']],
+                                ['name' => 'max_price', 'in' => 'query', 'schema' => ['type' => 'number']]
+                            ],
+                            'responses' => [
+                                '200' => [
+                                    'description' => 'Property list',
+                                    'content' => [
+                                        'application/json' => [
+                                            'schema' => [
+                                                'type' => 'object',
+                                                'properties' => [
+                                                    'data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Property']],
+                                                    'pagination' => ['type' => 'object']
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ],
+                        'post' => [
+                            'summary' => 'Create property (Host only)',
+                            'tags' => ['Properties'],
+                            'security' => [['bearerAuth' => []]],
+                            'responses' => ['200' => ['description' => 'Property created']]
+                        ]
+                    ],
+                    '/bookings' => [
+                        'post' => [
+                            'summary' => 'Create booking',
+                            'tags' => ['Bookings'],
+                            'security' => [['bearerAuth' => []]],
+                            'responses' => ['200' => ['description' => 'Booking created']]
+                        ]
+                    ]
+                ]
+            ];
+        }
+    ]);
+
+}); // End rest_api_init
+
+/* =============================================================================
+   CUSTOM POST TYPES REGISTRATION
+============================================================================= */
+
+add_action('init', function () {
+    // Property post type
+    register_post_type(HLB_PROPERTY_POST_TYPE, [
+        'label' => 'Properties',
+        'public' => true,
+        'has_archive' => false,
+        'supports' => ['title', 'editor', 'author', 'thumbnail'],
+        'show_in_rest' => true,
+        'rewrite' => ['slug' => 'properties'],
+        'capabilities' => [
+            'create_posts' => 'do_not_allow', // Prevent frontend creation
+        ]
+    ]);
+
+    // Booking post type
+    register_post_type(HLB_BOOKING_POST_TYPE, [
+        'label' => 'Bookings',
+        'public' => false,
+        'show_ui' => true,
+        'show_in_rest' => true,
+        'supports' => ['title', 'author'],
+        'capabilities' => [
+            'create_posts' => 'do_not_allow',
+        ]
+    ]);
+
+    // Review post type
+    register_post_type(HLB_REVIEW_POST_TYPE, [
+        'label' => 'Reviews',
+        'public' => false,
+        'show_ui' => true,
+        'show_in_rest' => true,
+        'supports' => ['title', 'editor', 'author'],
+    ]);
+
+    // Notification post type
+    register_post_type(HLB_NOTIFICATION_POST_TYPE, [
+        'label' => 'Notifications',
+        'public' => false,
+        'show_ui' => false,
+        'show_in_rest' => false,
+        'supports' => ['title', 'editor', 'author'],
+    ]);
+});
+
+/* =============================================================================
+   ACF FIELD GROUPS (Programmatic Registration)
+   Note: In production, configure these via ACF UI or JSON sync
+============================================================================= */
+
+add_action('acf/init', function () {
+    if (!function_exists('acf_add_local_field_group')) {
+        return; // ACF not active
+    }
+
+    // Property fields
+    acf_add_local_field_group([
+        'key' => 'group_property',
+        'title' => 'Property Details',
+        'fields' => [
+            ['key' => 'field_price', 'label' => 'Price per Night', 'name' => 'price_per_night', 'type' => 'number'],
+            ['key' => 'field_cleaning', 'label' => 'Cleaning Fee', 'name' => 'cleaning_fee', 'type' => 'number'],
+            ['key' => 'field_service', 'label' => 'Service Fee %', 'name' => 'service_fee_percent', 'type' => 'number'],
+            ['key' => 'field_guests', 'label' => 'Max Guests', 'name' => 'max_guests', 'type' => 'number'],
+            ['key' => 'field_bedrooms', 'label' => 'Bedrooms', 'name' => 'bedrooms', 'type' => 'number'],
+            ['key' => 'field_bathrooms', 'label' => 'Bathrooms', 'name' => 'bathrooms', 'type' => 'number'],
+            ['key' => 'field_address', 'label' => 'Address', 'name' => 'address', 'type' => 'text'],
+            ['key' => 'field_coordinates', 'label' => 'Coordinates', 'name' => 'coordinates', 'type' => 'google_map'],
+            ['key' => 'field_amenities', 'label' => 'Amenities', 'name' => 'amenities', 'type' => 'checkbox', 'choices' => ['wifi', 'kitchen', 'parking', 'pool', 'ac', 'washer']],
+            ['key' => 'field_rules', 'label' => 'House Rules', 'name' => 'house_rules', 'type' => 'textarea'],
+            ['key' => 'field_cancellation', 'label' => 'Cancellation Policy', 'name' => 'cancellation_policy', 'type' => 'select', 'choices' => ['flexible', 'moderate', 'strict']],
+            ['key' => 'field_instant', 'label' => 'Instant Booking', 'name' => 'instant_booking', 'type' => 'true_false'],
+            ['key' => 'field_status', 'label' => 'Property Status', 'name' => 'property_status', 'type' => 'select', 'choices' => [HLB_PROPERTY_STATUS_DRAFT, HLB_PROPERTY_STATUS_PENDING, HLB_PROPERTY_STATUS_APPROVED, HLB_PROPERTY_STATUS_REJECTED, HLB_PROPERTY_STATUS_SUSPENDED], 'default_value' => HLB_PROPERTY_STATUS_DRAFT],
+            ['key' => 'field_rating', 'label' => 'Average Rating', 'name' => 'average_rating', 'type' => 'number', 'readonly' => 1],
+            ['key' => 'field_reviews', 'label' => 'Total Reviews', 'name' => 'total_reviews', 'type' => 'number', 'readonly' => 1],
+            ['key' => 'field_gallery', 'label' => 'Gallery Images', 'name' => 'gallery_images', 'type' => 'gallery'],
+            ['key' => 'field_blocked', 'label' => 'Blocked Dates', 'name' => 'blocked_dates', 'type' => 'date_picker', 'multiple' => 1],
+            ['key' => 'field_min_stay', 'label' => 'Minimum Stay', 'name' => 'minimum_stay', 'type' => 'number'],
+            ['key' => 'field_max_stay', 'label' => 'Maximum Stay', 'name' => 'maximum_stay', 'type' => 'number'],
+            ['key' => 'field_advance', 'label' => 'Advance Booking Days', 'name' => 'advance_booking_days', 'type' => 'number'],
+        ],
+        'location' => [['param' => 'post_type', 'operator' => '==', 'value' => HLB_PROPERTY_POST_TYPE]]
+    ]);
+
+    // Booking fields
+    acf_add_local_field_group([
+        'key' => 'group_booking',
+        'title' => 'Booking Details',
+        'fields' => [
+            ['key' => 'field_traveler', 'label' => 'Traveler', 'name' => 'traveler_id', 'type' => 'user'],
+            ['key' => 'field_prop', 'label' => 'Property', 'name' => 'property_id', 'type' => 'post_object', 'post_type' => HLB_PROPERTY_POST_TYPE],
+            ['key' => 'field_checkin', 'label' => 'Check-in Date', 'name' => 'check_in_date', 'type' => 'date_picker'],
+            ['key' => 'field_checkout', 'label' => 'Check-out Date', 'name' => 'check_out_date', 'type' => 'date_picker'],
+            ['key' => 'field_guests', 'label' => 'Guest Count', 'name' => 'guest_count', 'type' => 'number'],
+            ['key' => 'field_total', 'label' => 'Total Price', 'name' => 'total_price', 'type' => 'number'],
+            ['key' => 'field_service_fee', 'label' => 'Service Fee', 'name' => 'service_fee', 'type' => 'number'],
+            ['key' => 'field_taxes', 'label' => 'Taxes', 'name' => 'taxes', 'type' => 'number'],
+            ['key' => 'field_b_status', 'label' => 'Booking Status', 'name' => 'booking_status', 'type' => 'select', 'choices' => [HLB_BOOKING_STATUS_PENDING_PAYMENT, HLB_BOOKING_STATUS_PENDING_APPROVAL, HLB_BOOKING_STATUS_CONFIRMED, HLB_BOOKING_STATUS_CANCELLED_TRAVELER, HLB_BOOKING_STATUS_CANCELLED_HOST, HLB_BOOKING_STATUS_EXPIRED, HLB_BOOKING_STATUS_COMPLETED]],
+            ['key' => 'field_p_status', 'label' => 'Payment Status', 'name' => 'payment_status', 'type' => 'select', 'choices' => [HLB_PAYMENT_STATUS_INTENT, HLB_PAYMENT_STATUS_AUTHORIZED, HLB_PAYMENT_STATUS_CAPTURED, HLB_PAYMENT_STATUS_FAILED, HLB_PAYMENT_STATUS_REFUNDED]],
+            ['key' => 'field_intent', 'label' => 'Payment Intent ID', 'name' => 'payment_intent_id', 'type' => 'text'],
+            ['key' => 'field_confirmed', 'label' => 'Payment Confirmed At', 'name' => 'payment_confirmed_at', 'type' => 'date_time_picker'],
+            ['key' => 'field_cancel_deadline', 'label' => 'Cancellation Deadline', 'name' => 'cancellation_deadline', 'type' => 'date_time_picker'],
+            ['key' => 'field_cancel_fee', 'label' => 'Cancellation Fee', 'name' => 'cancellation_fee', 'type' => 'number'],
+            ['key' => 'field_refunded', 'label' => 'Refunded Amount', 'name' => 'refunded_amount', 'type' => 'number'],
+            ['key' => 'field_reviewed', 'label' => 'Reviewed', 'name' => 'reviewed', 'type' => 'true_false'],
+            ['key' => 'field_expires', 'label' => 'Booking Expires At', 'name' => 'booking_expires_at', 'type' => 'date_time_picker'],
+        ],
+        'location' => [['param' => 'post_type', 'operator' => '==', 'value' => HLB_BOOKING_POST_TYPE]]
+    ]);
+
+    // Review fields
+    acf_add_local_field_group([
+        'key' => 'group_review',
+        'title' => 'Review Details',
+        'fields' => [
+            ['key' => 'field_rating', 'label' => 'Rating', 'name' => 'rating', 'type' => 'range', 'min' => 1, 'max' => 5, 'step' => 1],
+            ['key' => 'field_prop_rev', 'label' => 'Property', 'name' => 'property_id', 'type' => 'post_object', 'post_type' => HLB_PROPERTY_POST_TYPE],
+            ['key' => 'field_booking_rev', 'label' => 'Booking', 'name' => 'booking_id', 'type' => 'post_object', 'post_type' => HLB_BOOKING_POST_TYPE],
+            ['key' => 'field_host_reply', 'label' => 'Host Reply', 'name' => 'host_reply', 'type' => 'textarea'],
+            ['key' => 'field_reply_date', 'label' => 'Reply Date', 'name' => 'host_reply_date', 'type' => 'date_time_picker'],
+            ['key' => 'field_hidden', 'label' => 'Hidden (Moderation)', 'name' => 'review_hidden', 'type' => 'true_false'],
+        ],
+        'location' => [['param' => 'post_type', 'operator' => '==', 'value' => HLB_REVIEW_POST_TYPE]]
+    ]);
+
+    // Notification fields
+    acf_add_local_field_group([
+        'key' => 'group_notification',
+        'title' => 'Notification Details',
+        'fields' => [
+            ['key' => 'field_notif_user', 'label' => 'User ID', 'name' => 'notification_user_id', 'type' => 'number'],
+            ['key' => 'field_notif_type', 'label' => 'Type', 'name' => 'notification_type', 'type' => 'select', 'choices' => ['welcome', 'booking_request', 'booking_confirmed', 'booking_cancelled', 'payment_success', 'review_invitation', 'property_status_update', 'admin_alert']],
+            ['key' => 'field_notif_data', 'label' => 'Additional Data', 'name' => 'notification_data', 'type' => 'repeater'],
+            ['key' => 'field_notif_read', 'label' => 'Read', 'name' => 'notification_read', 'type' => 'true_false'],
+        ],
+        'location' => [['param' => 'post_type', 'operator' => '==', 'value' => HLB_NOTIFICATION_POST_TYPE]]
+    ]);
+});
+
+/* =============================================================================
+   SECURITY & PERFORMANCE
+============================================================================= */
+
+// Rate limiting helper (basic implementation)
+function hlb_rate_limit(string $key, int $limit, int $window): bool {
+    $transient = 'hlb_rate_' . md5($key);
+    $attempts = get_transient($transient) ?: 0;
+
+    if ($attempts >= $limit) {
+        return false;
+    }
+
+    set_transient($transient, $attempts + 1, $window);
+    return true;
+}
+
+// Add rate limiting to auth endpoints
+add_filter('rest_pre_dispatch', function ($result, $server, $request) {
+    $path = $request->get_route();
+
+    // Rate limit auth endpoints: 5 attempts per 15 minutes per IP
+    if (strpos($path, '/auth/login') !== false || strpos($path, '/auth/register') !== false) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        if (!hlb_rate_limit("auth:{$ip}", 5, 15 * MINUTE_IN_SECONDS)) {
+            return new WP_Error('rate_limited', 'Too many attempts. Please try again later.', ['status' => 429]);
+        }
+    }
+
+    return $result;
+}, 10, 3);
+
+// CORS headers for headless frontend
+add_filter('rest_pre_serve_request', function ($served, $result, $request) {
+    header('Access-Control-Allow-Origin: *'); // Restrict in production
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Authorization, Content-Type, Idempotency-Key');
+
+    // Handle preflight
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        status_header(200);
+        exit;
+    }
+
+    return $served;
+}, 10, 3);
+
+// Log critical errors
+add_action('rest_api_init', function () {
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        add_filter('rest_json_encode_options', function ($options) {
+            $options['depth'] = 20;
+            return $options;
+        });
+    }
+});
+
+/* =============================================================================
+   ACTIVATION HOOK (for cron registration)
+============================================================================= */
+
+register_activation_hook(__FILE__, function () {
+    hlb_register_cron_jobs();
+    flush_rewrite_rules();
+});
+
+register_deactivation_hook(__FILE__, function () {
+    wp_clear_scheduled_hook('hlb_cron_expire_unpaid_bookings');
+    wp_clear_scheduled_hook('hlb_cron_mark_completed_bookings');
+    wp_clear_scheduled_hook('hlb_cron_send_booking_reminders');
+    wp_clear_scheduled_hook('hlb_cron_clean_orphaned_data');
+    flush_rewrite_rules();
+});
