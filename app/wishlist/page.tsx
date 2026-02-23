@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart, Star, Share2 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { useAuth } from "@/context/AuthContext";
 
 interface Property {
   id: number;
@@ -15,10 +17,21 @@ interface Property {
 }
 
 export default function WishlistPage() {
+  const router = useRouter();
+  const { isAuthenticated, isTraveler, loading } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Protect this route - only travelers can have wishlists
+  useEffect(() => {
+    if (!loading && (!isAuthenticated || !isTraveler())) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isTraveler, loading, router]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    
     setTimeout(() => {
       setProperties([
         {
@@ -94,9 +107,17 @@ export default function WishlistPage() {
             "https://images.unsplash.com/photo-1505691723518-36a5ac3be353?q=80&w=1600&auto=format&fit=crop",
         },
       ]);
-      setLoading(false);
+      setDataLoading(false);
     }, 800);
-  }, []);
+  }, [isAuthenticated]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -123,7 +144,7 @@ export default function WishlistPage() {
 
 
         {/* GRID */}
-        {loading ? (
+        {dataLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse space-y-4">

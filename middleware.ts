@@ -1,39 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_ROUTES = ['/login', '/signup', '/properties', '/verify-email', '/'];
-const PROTECTED_ROUTES: { [key: string]: string[] } = {
-  '/host': ['host'],
-  '/dashboard': ['traveler'],
-  '/wishlist': ['traveler'],
-  '/booking': ['traveler'],
-  '/checkout': ['traveler']
-};
 
+/**
+ * Middleware for Next.js route protection
+ * 
+ * Note: This middleware only handles basic route access.
+ * Actual authentication and role-based authorization happens at:
+ * 1. Page level (via useAuth hook and useEffect redirects)
+ * 2. Component level (via ProtectedRoute component)
+ * 3. API level (via JWT validation in backend)
+ * 
+ * This is because Next.js middleware runs server-side and cannot access
+ * localStorage where JWT tokens are stored.
+ */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Allow public routes
+  // Allow all public routes without any checks
   if (PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith(route + '/'))) {
     return NextResponse.next();
   }
 
-  // Get access token
-  const accessToken = request.cookies.get('access_token')?.value;
-
-  // No token - redirect to login
-  if (!accessToken) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  // Check route-specific permission
-  for (const [protected_route, required_roles] of Object.entries(PROTECTED_ROUTES)) {
-    if (pathname.startsWith(protected_route)) {
-      // Token exists, allow access for now
-      // Role validation happens on client side with AuthContext
-      return NextResponse.next();
-    }
-  }
-
+  // For all other routes, let them through
+  // Client-side protection via AuthContext will handle redirects
+  // This approach is standard for Next.js apps using localStorage for tokens
   return NextResponse.next();
 }
 
