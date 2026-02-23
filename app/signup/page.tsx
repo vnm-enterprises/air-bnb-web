@@ -3,15 +3,79 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { signup } from "@/lib/auth";
 
 type Role = "traveler" | "host";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [role, setRole] = useState<Role>("traveler");
   const [showPw, setShowPw] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
   const strength = useMemo(() => passwordStrength(pw), [pw]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // Validation
+    if (!name.trim()) {
+      setError("Name is required");
+      setLoading(false);
+      return;
+    }
+    if (!email.trim()) {
+      setError("Email is required");
+      setLoading(false);
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Invalid email address");
+      setLoading(false);
+      return;
+    }
+    if (pw.length < 8) {
+      setError("Password must be at least 8 characters");
+      setLoading(false);
+      return;
+    }
+    if (!agreedTerms) {
+      setError("You must agree to the Terms of Service");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await signup({ name, email, password: pw, role });
+      
+      if (res.success) {
+        setSuccess(true);
+        setName("");
+        setEmail("");
+        setPw("");
+        
+        // Redirect to verify email page or login after a short delay
+        setTimeout(() => {
+          router.push(`/login?message=${encodeURIComponent("Please check your email to verify your account")}`);
+        }, 2000);
+      } else {
+        setError(res.error || "Signup failed");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f4f4] text-slate-900">
@@ -81,155 +145,195 @@ export default function SignupPage() {
               Join our community of travelers and hosts.
             </p>
 
-            {/* Role toggle */}
-            <div className="mt-5 bg-slate-100 border border-slate-200 rounded-md p-1 flex">
-              <button
-                onClick={() => setRole("traveler")}
-                className={[
-                  "flex-1 h-9 rounded-md text-[12px] font-semibold transition",
-                  role === "traveler"
-                    ? "bg-white shadow-sm text-slate-900"
-                    : "text-slate-600 hover:text-slate-900",
-                ].join(" ")}
-              >
-                I&apos;m a Traveler
-              </button>
-              <button
-                onClick={() => setRole("host")}
-                className={[
-                  "flex-1 h-9 rounded-md text-[12px] font-semibold transition",
-                  role === "host"
-                    ? "bg-white shadow-sm text-slate-900"
-                    : "text-slate-600 hover:text-slate-900",
-                ].join(" ")}
-              >
-                I&apos;m a Host
-              </button>
-            </div>
-
-            {/* Form */}
-            <div className="mt-6 space-y-4">
-              <Field label="Full Name" placeholder="e.g. Alex Johnson" />
-
-              <Field label="Email Address" placeholder="alex@example.com" type="email" />
-
-              {/* Password */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold text-slate-700">
-                    Password
-                  </label>
+            {success ? (
+              <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-green-800 text-[12px] font-semibold">
+                  ✓ Signup successful! Please check your email to verify your account.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                {/* Role toggle */}
+                <div className="mt-5 bg-slate-100 border border-slate-200 rounded-md p-1 flex">
                   <button
                     type="button"
-                    className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
-                    onClick={() => setShowPw((v) => !v)}
+                    onClick={() => setRole("traveler")}
+                    className={[
+                      "flex-1 h-9 rounded-md text-[12px] font-semibold transition",
+                      role === "traveler"
+                        ? "bg-white shadow-sm text-slate-900"
+                        : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
                   >
-                    {showPw ? "Hide" : "Show"}
+                    I&apos;m a Traveler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRole("host")}
+                    className={[
+                      "flex-1 h-9 rounded-md text-[12px] font-semibold transition",
+                      role === "host"
+                        ? "bg-white shadow-sm text-slate-900"
+                        : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                  >
+                    I&apos;m a Host
                   </button>
                 </div>
 
-                <div className="mt-2 relative">
-                  <input
-                    value={pw}
-                    onChange={(e) => setPw(e.target.value)}
-                    type={showPw ? "text" : "password"}
-                    placeholder="Minimum 8 characters"
-                    className="w-full h-10 px-3 pr-10 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md hover:bg-slate-100 flex items-center justify-center"
-                    aria-label={showPw ? "Hide password" : "Show password"}
-                  >
-                    {showPw ? (
-                      <EyeOff className="w-4 h-4 text-slate-500" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-slate-500" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Strength bar */}
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                    <div
-                      className="h-full bg-[#2C5F5D]"
-                      style={{ width: `${strength.pct}%` }}
-                    />
+                {/* Error message */}
+                {error && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-red-700 text-[12px] font-semibold">{error}</p>
                   </div>
-                  <span className="text-[10px] font-bold tracking-widest text-slate-500">
-                    {strength.label}
-                  </span>
+                )}
+
+                {/* Form */}
+                <div className="mt-6 space-y-4">
+                  <Field
+                    label="Full Name"
+                    placeholder="e.g. Alex Johnson"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+
+                  <Field
+                    label="Email Address"
+                    placeholder="alex@example.com"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+
+                  {/* Password */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-semibold text-slate-700">
+                        Password
+                      </label>
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                        onClick={() => setShowPw((v) => !v)}
+                      >
+                        {showPw ? "Hide" : "Show"}
+                      </button>
+                    </div>
+
+                    <div className="mt-2 relative">
+                      <input
+                        value={pw}
+                        onChange={(e) => setPw(e.target.value)}
+                        type={showPw ? "text" : "password"}
+                        placeholder="Minimum 8 characters"
+                        className="w-full h-10 px-3 pr-10 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md hover:bg-slate-100 flex items-center justify-center"
+                        aria-label={showPw ? "Hide password" : "Show password"}
+                      >
+                        {showPw ? (
+                          <EyeOff className="w-4 h-4 text-slate-500" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-slate-500" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Strength bar */}
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                          className="h-full bg-[#2C5F5D]"
+                          style={{ width: `${strength.pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-bold tracking-widest text-slate-500">
+                        {strength.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Terms */}
+                  <label className="flex items-start gap-2 text-[11px] text-slate-500 leading-relaxed">
+                    <input
+                      type="checkbox"
+                      checked={agreedTerms}
+                      onChange={(e) => setAgreedTerms(e.target.checked)}
+                      className="mt-0.5 accent-[#2C5F5D]"
+                    />
+                    <span>
+                      I agree to the{" "}
+                      <span className="underline decoration-slate-300 underline-offset-2 cursor-pointer text-slate-600">
+                        Terms of Service
+                      </span>{" "}
+                      and{" "}
+                      <span className="underline decoration-slate-300 underline-offset-2 cursor-pointer text-slate-600">
+                        Privacy Policy
+                      </span>
+                      . I also agree to receive occasional updates from StayTeal.
+                    </span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-11 rounded-md bg-[#2C5F5D] hover:bg-[#244f4d] disabled:opacity-50 transition text-white font-semibold text-[12px]"
+                  >
+                    {loading ? "Creating Account..." : "Create Account"}
+                  </button>
+
+                  {/* Divider */}
+                  <div className="pt-2">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px bg-slate-200 flex-1" />
+                      <span className="text-[10px] text-slate-400 tracking-widest">
+                        OR SIGN UP WITH
+                      </span>
+                      <div className="h-px bg-slate-200 flex-1" />
+                    </div>
+                  </div>
+
+                  {/* Social */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      className="h-10 rounded-md border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition flex items-center justify-center gap-2 text-[12px] font-semibold text-slate-700"
+                    >
+                      <GoogleIcon />
+                      Google
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={loading}
+                      className="h-10 rounded-md border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition flex items-center justify-center gap-2 text-[12px] font-semibold text-slate-700"
+                    >
+                      <AppleIcon />
+                      Apple
+                    </button>
+                  </div>
+
+                  <p className="text-center text-[11px] text-slate-500 pt-1">
+                    Already have an account?{" "}
+                    <Link
+                      href="/login"
+                      className="font-semibold text-[#2C5F5D] hover:text-[#244f4d]"
+                    >
+                      Login
+                    </Link>
+                  </p>
                 </div>
-              </div>
-
-              {/* Terms */}
-              <label className="flex items-start gap-2 text-[11px] text-slate-500 leading-relaxed">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 accent-[#2C5F5D]"
-                  defaultChecked
-                />
-                <span>
-                  I agree to the{" "}
-                  <span className="underline decoration-slate-300 underline-offset-2 cursor-pointer text-slate-600">
-                    Terms of Service
-                  </span>{" "}
-                  and{" "}
-                  <span className="underline decoration-slate-300 underline-offset-2 cursor-pointer text-slate-600">
-                    Privacy Policy
-                  </span>
-                  . I also agree to receive occasional updates from StayTeal.
-                </span>
-              </label>
-
-              <button className="w-full h-11 rounded-md bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white font-semibold text-[12px]">
-                Create Account
-              </button>
-
-              {/* Divider */}
-              <div className="pt-2">
-                <div className="flex items-center gap-3">
-                  <div className="h-px bg-slate-200 flex-1" />
-                  <span className="text-[10px] text-slate-400 tracking-widest">
-                    OR SIGN UP WITH
-                  </span>
-                  <div className="h-px bg-slate-200 flex-1" />
-                </div>
-              </div>
-
-              {/* Social */}
-              <div className="grid grid-cols-2 gap-3">
-                <button className="h-10 rounded-md border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center gap-2 text-[12px] font-semibold text-slate-700">
-                  <GoogleIcon />
-                  Google
-                </button>
-
-                <button className="h-10 rounded-md border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center gap-2 text-[12px] font-semibold text-slate-700">
-                  <AppleIcon />
-                  Apple
-                </button>
-              </div>
-
-              <p className="text-center text-[11px] text-slate-500 pt-1">
-                Already have an account?{" "}
-                <Link
-                  href="/login"
-                  className="font-semibold text-[#2C5F5D] hover:text-[#244f4d]"
-                >
-                  Login
-                </Link>
-              </p>
-            </div>
+              </form>
+            )}
 
             {/* Small note (keeps spacing similar) */}
             <p className="text-center text-[11px] text-slate-400 mt-8">
               © {new Date().getFullYear()} StayTeal. All rights reserved.
             </p>
-
-            {/* Hidden role output (optional) */}
-            <input type="hidden" value={role} readOnly />
           </div>
         </div>
       </div>
@@ -242,10 +346,14 @@ function Field({
   label,
   placeholder,
   type = "text",
+  value,
+  onChange,
 }: {
   label: string;
   placeholder: string;
   type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div>
@@ -253,6 +361,8 @@ function Field({
       <input
         type={type}
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
         className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
       />
     </div>

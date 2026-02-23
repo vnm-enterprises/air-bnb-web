@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
   Search,
   Bell,
@@ -62,7 +64,24 @@ const RECENT: RecentBooking[] = [
 ];
 
 export default function HostDashboardPage() {
+  const router = useRouter();
+  const { isAuthenticated, isHost, loading } = useAuth();
   const [q, setQ] = useState("");
+
+  // Redirect if not authenticated or not a host
+  useEffect(() => {
+    if (!loading && (!isAuthenticated || !isHost())) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isHost, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
+      </div>
+    );
+  }
 
   const rows = useMemo(() => {
     const x = q.trim().toLowerCase();

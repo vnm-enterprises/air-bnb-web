@@ -4,23 +4,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Heart, User, Menu, X } from "lucide-react";
-
-interface UserType {
-  name: string;
-  avatar?: string;
-}
+import { Heart, User, Menu, X, LogOut } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Header() {
-  const [user, setUser] = useState<UserType | null>(null);
+  const { isAuthenticated, user, logout, isHost, isTraveler, loading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
-  useEffect(() => {
-    const stored = localStorage.getItem("user");
-    if (stored) setUser(JSON.parse(stored));
-  }, []);
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
 
   const navLinks = [
     { label: "Home", href: "/" },
@@ -65,7 +61,7 @@ export default function Header() {
             {/* RIGHT SECTION DESKTOP */}
             <div className="hidden md:flex items-center gap-4">
 
-              {!user && (
+              {!isAuthenticated && !loading && (
                 <>
                   <Link
                     href="/login"
@@ -76,36 +72,65 @@ export default function Header() {
 
                   <Link
                     href="/signup"
-                    className="text-sm bg-[#306966] text-white px-4 py-2 rounded-full hover:bg-gray-800 transition"
+                    className="text-sm bg-[#2C5F5D] text-white px-4 py-2 rounded-full hover:bg-[#244f4d] transition"
                   >
                     Sign Up
                   </Link>
                 </>
               )}
 
-              {user && (
+              {isAuthenticated && !loading && (
                 <>
-                  <button
-                    onClick={() => router.push("/wishlist")}
-                    className="p-2 rounded-full hover:bg-gray-100 transition"
-                  >
-                    <Heart className="w-5 h-5 text-gray-700" />
-                  </button>
+                  {isHost() && (
+                    <Link
+                      href="/host"
+                      className="text-sm text-gray-600 hover:text-black transition"
+                    >
+                      Host Dashboard
+                    </Link>
+                  )}
 
-                  <button
-                    onClick={() => router.push("/profile")}
-                    className="p-2 rounded-full hover:bg-gray-100 transition"
-                  >
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt="profile"
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
+                  {isTraveler() && (
+                    <button
+                      onClick={() => router.push("/wishlist")}
+                      className="p-2 rounded-full hover:bg-gray-100 transition"
+                    >
+                      <Heart className="w-5 h-5 text-gray-700" />
+                    </button>
+                  )}
+
+                  <div className="relative group">
+                    <button className="p-2 rounded-full hover:bg-gray-100 transition">
                       <User className="w-5 h-5 text-gray-700" />
-                    )}
-                  </button>
+                    </button>
+
+                    {/* Dropdown menu */}
+                    <div className="absolute right-0 mt-0 w-40 bg-white border border-slate-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition">
+                      <div className="px-4 py-3 border-b">
+                        <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
+                        <p className="text-xs text-slate-500">{user?.email}</p>
+                      </div>
+                      
+                      <div className="py-2">
+                        {isTraveler() && (
+                          <Link
+                            href="/dashboard"
+                            className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            My Bookings
+                          </Link>
+                        )}
+                        
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Logout
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -157,7 +182,7 @@ export default function Header() {
             <div className="border-t my-6" />
 
             {/* AUTH SECTION */}
-            {!user && (
+            {!isAuthenticated && !loading && (
               <div className="flex flex-col gap-4 text-sm">
                 <button
                   onClick={() => handleNavigate("/login")}
@@ -168,27 +193,53 @@ export default function Header() {
 
                 <button
                   onClick={() => handleNavigate("/signup")}
-                  className="bg-black text-white py-2 rounded-full"
+                  className="bg-[#2C5F5D] text-white py-2 rounded-full"
                 >
                   Sign Up
                 </button>
               </div>
             )}
 
-            {user && (
+            {isAuthenticated && !loading && (
               <div className="flex flex-col gap-4 text-sm">
-                <button
-                  onClick={() => handleNavigate("/wishlist")}
-                  className="text-left"
-                >
-                  Wishlist
-                </button>
+                <div className="px-2 py-2 border-b">
+                  <p className="font-semibold text-slate-900">{user?.name}</p>
+                  <p className="text-xs text-slate-500">{user?.email}</p>
+                </div>
+
+                {isHost() && (
+                  <button
+                    onClick={() => handleNavigate("/host")}
+                    className="text-left text-gray-600 hover:text-black"
+                  >
+                    Host Dashboard
+                  </button>
+                )}
+
+                {isTraveler() && (
+                  <>
+                    <button
+                      onClick={() => handleNavigate("/dashboard")}
+                      className="text-left text-gray-600 hover:text-black"
+                    >
+                      My Bookings
+                    </button>
+
+                    <button
+                      onClick={() => handleNavigate("/wishlist")}
+                      className="text-left text-gray-600 hover:text-black"
+                    >
+                      Wishlist
+                    </button>
+                  </>
+                )}
 
                 <button
-                  onClick={() => handleNavigate("/profile")}
-                  className="text-left"
+                  onClick={handleLogout}
+                  className="text-left text-red-600 hover:text-red-700 flex items-center gap-2"
                 >
-                  Profile
+                  <LogOut className="w-4 h-4" />
+                  Logout
                 </button>
               </div>
             )}
