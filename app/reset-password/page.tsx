@@ -44,8 +44,26 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(password)) {
-      setError("Password must contain letters and numbers");
+    if (!/[A-Z]/.test(password)) {
+      setError("Password must contain at least one uppercase letter");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      setError("Password must contain at least one lowercase letter");
+      setLoading(false);
+      return;
+    }
+
+    if (!/\d/.test(password)) {
+      setError("Password must contain at least one number");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setError("Password must contain at least one special character (@, #, $, etc.)");
       setLoading(false);
       return;
     }
@@ -139,7 +157,7 @@ export default function ResetPasswordPage() {
                         </button>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        Must contain letters and numbers
+                        Must have uppercase, lowercase, number & special character
                       </p>
                     </div>
 

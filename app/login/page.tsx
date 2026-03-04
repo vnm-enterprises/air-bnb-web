@@ -163,36 +163,6 @@ export default function LoginPage() {
               </div>
             </form>
 
-            {/* DIVIDER */}
-            <div className="mt-8 flex items-center gap-4">
-              <div className="h-px bg-slate-200 flex-1" />
-              <span className="text-xs text-slate-400">
-                Or continue with
-              </span>
-              <div className="h-px bg-slate-200 flex-1" />
-            </div>
-
-            {/* SOCIAL */}
-            <div className="mt-6 grid grid-cols-2 gap-4">
-
-              <button 
-                type="button"
-                disabled={loading}
-                className="h-11 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition font-semibold text-sm"
-              >
-                Google
-              </button>
-
-              <button 
-                type="button"
-                disabled={loading}
-                className="h-11 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition font-semibold text-sm"
-              >
-                Apple
-              </button>
-
-            </div>
-
             <p className="mt-8 text-center text-xs text-slate-500">
               Don&apos;t have an account?{" "}
               <Link

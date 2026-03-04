@@ -6,10 +6,12 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Heart, User, Menu, X, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import ProfileModal from "@/components/ui/ProfileModal";
 
 export default function Header() {
   const { isAuthenticated, user, logout, isHost, isTraveler, loading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -120,6 +122,13 @@ export default function Header() {
                             My Bookings
                           </Link>
                         )}
+                        
+                        <button
+                          onClick={() => setProfileModalOpen(true)}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          Profile Settings
+                        </button>
                         
                         <button
                           onClick={handleLogout}
@@ -235,6 +244,13 @@ export default function Header() {
                 )}
 
                 <button
+                  onClick={() => setProfileModalOpen(true)}
+                  className="text-left text-gray-600 hover:text-black"
+                >
+                  Profile Settings
+                </button>
+
+                <button
                   onClick={handleLogout}
                   className="text-left text-red-600 hover:text-red-700 flex items-center gap-2"
                 >
@@ -244,9 +260,15 @@ export default function Header() {
               </div>
             )}
 
-          </div>
-        </>
-      )}
-    </>
-  );
+        </div>
+
+      </>
+    )}
+
+    <ProfileModal 
+      isOpen={profileModalOpen} 
+      onClose={() => setProfileModalOpen(false)} 
+    />
+  </>
+);
 }

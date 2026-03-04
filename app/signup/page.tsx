@@ -48,6 +48,21 @@ export default function SignupPage() {
       setLoading(false);
       return;
     }
+    if (!/[A-Z]/.test(pw)) {
+      setError("Password must contain at least one uppercase letter");
+      setLoading(false);
+      return;
+    }
+    if (!/\d/.test(pw)) {
+      setError("Password must contain at least one number");
+      setLoading(false);
+      return;
+    }
+    if (!/[^A-Za-z0-9]/.test(pw)) {
+      setError("Password must contain at least one special character");
+      setLoading(false);
+      return;
+    }
     if (!agreedTerms) {
       setError("You must agree to the Terms of Service");
       setLoading(false);
@@ -242,17 +257,47 @@ export default function SignupPage() {
                       </button>
                     </div>
 
-                    {/* Strength bar */}
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                        <div
-                          className="h-full bg-[#2C5F5D]"
-                          style={{ width: `${strength.pct}%` }}
-                        />
+                    {/* Strength bar and requirements */}
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                          <div
+                            className="h-full bg-[#2C5F5D]"
+                            style={{ width: `${strength.pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold tracking-widest text-slate-500">
+                          {strength.label}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-bold tracking-widest text-slate-500">
-                        {strength.label}
-                      </span>
+                      
+                      {/* Password requirements */}
+                      <div className="mt-2 text-[11px] space-y-1 text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span className={pw.length >= 8 ? 'text-green-600' : 'text-slate-400'}>
+                            {pw.length >= 8 ? '✓' : '○'}
+                          </span>
+                          <span>At least 8 characters</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={/[A-Z]/.test(pw) ? 'text-green-600' : 'text-slate-400'}>
+                            {/[A-Z]/.test(pw) ? '✓' : '○'}
+                          </span>
+                          <span>Contains uppercase letter</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={/\d/.test(pw) ? 'text-green-600' : 'text-slate-400'}>
+                            {/\d/.test(pw) ? '✓' : '○'}
+                          </span>
+                          <span>Contains number</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={/[^A-Za-z0-9]/.test(pw) ? 'text-green-600' : 'text-slate-400'}>
+                            {/[^A-Za-z0-9]/.test(pw) ? '✓' : '○'}
+                          </span>
+                          <span>Contains special character</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -284,38 +329,6 @@ export default function SignupPage() {
                   >
                     {loading ? "Creating Account..." : "Create Account"}
                   </button>
-
-                  {/* Divider */}
-                  <div className="pt-2">
-                    <div className="flex items-center gap-3">
-                      <div className="h-px bg-slate-200 flex-1" />
-                      <span className="text-[10px] text-slate-400 tracking-widest">
-                        OR SIGN UP WITH
-                      </span>
-                      <div className="h-px bg-slate-200 flex-1" />
-                    </div>
-                  </div>
-
-                  {/* Social */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      disabled={loading}
-                      className="h-10 rounded-md border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition flex items-center justify-center gap-2 text-[12px] font-semibold text-slate-700"
-                    >
-                      <GoogleIcon />
-                      Google
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={loading}
-                      className="h-10 rounded-md border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition flex items-center justify-center gap-2 text-[12px] font-semibold text-slate-700"
-                    >
-                      <AppleIcon />
-                      Apple
-                    </button>
-                  </div>
 
                   <p className="text-center text-[11px] text-slate-500 pt-1">
                     Already have an account?{" "}

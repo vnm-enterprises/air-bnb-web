@@ -188,9 +188,9 @@ export async function getCurrentUser() {
 }
 
 /**
- * Update user profile
+ * Update user profile (name only)
  */
-export async function updateProfile(data: { name?: string; password?: string }) {
+export async function updateProfile(data: { name?: string }) {
   try {
     const res = await api.post('/api/v1/profile', data);
     return { success: true, data: res.data };
