@@ -2,11 +2,13 @@
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { CheckCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Clock3 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function SuccessPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const bookingId = searchParams.get("bookingId");
 
   return (
     <>
@@ -14,18 +16,23 @@ export default function SuccessPage() {
 
       <main className="flex flex-col items-center justify-center py-24 px-6 text-center">
 
-        <CheckCircle size={64} className="text-green-600 mb-6" />
+        <Clock3 size={64} className="text-amber-500 mb-6" />
 
         <h1 className="text-3xl font-semibold mb-4">
-          Booking Confirmed!
+          Booking Request Submitted
         </h1>
 
         <p className="text-gray-600 mb-10 max-w-md">
-          Your stay has been successfully booked.
-          Confirmation details have been sent to your email.
+          Your booking is currently pending host approval.
+          We’ll notify you as soon as it’s confirmed.
         </p>
 
         <div className="border rounded-2xl p-6 max-w-md w-full shadow-sm mb-10">
+          <div className="mb-4">
+            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-xs font-semibold">
+              Pending Approval
+            </span>
+          </div>
 
           <p className="font-semibold mb-2">
             Modern Beachside Villa
@@ -41,10 +48,12 @@ export default function SuccessPage() {
         </div>
 
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() =>
+            router.push(bookingId ? `/booking/${bookingId}` : "/dashboard")
+          }
           className="bg-[#306966] text-white px-8 py-3 rounded-xl font-medium hover:bg-[#255a58] transition"
         >
-          View Bookings
+          View Pending Booking
         </button>
 
       </main>

@@ -97,7 +97,7 @@ function getOverlappingNights(
 
 export default function HostDashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, isHost, loading, user } = useAuth();
+  const { isAuthenticated, isHost, loading, user, logout } = useAuth();
   const [q, setQ] = useState("");
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -108,6 +108,7 @@ export default function HostDashboardPage() {
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Redirect if not authenticated or not a host
   useEffect(() => {
@@ -296,6 +297,21 @@ export default function HostDashboardPage() {
     );
   }, [q, recentBookings]);
 
+  const handleLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+
+    try {
+      await logout();
+      router.push("/login");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -394,6 +410,14 @@ export default function HostDashboardPage() {
                 >
                   Home
                 </Link>
+
+                <button
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="inline-flex items-center bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-700 text-[11px] font-semibold px-3 py-2 rounded-md disabled:opacity-60"
+                >
+                  {loggingOut ? "Logging out..." : "Logout"}
+                </button>
 
                 <Link
                   href="/host/add-property/basics"

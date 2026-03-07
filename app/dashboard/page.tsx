@@ -7,13 +7,32 @@ import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { getUserBookings } from "@/lib/bookingApi";
+import { getBookingById, getUserBookings } from "@/lib/bookingApi";
+import { getPropertyById } from "@/lib/propertyApi";
 import type { Booking } from "@/lib/bookingApi";
+
+function normalizeBookingStatus(status: string): Booking["status"] {
+  const normalized = status.toLowerCase();
+
+  if (normalized === "approved") {
+    return "confirmed";
+  }
+
+  if (normalized === "rejected") {
+    return "cancelled";
+  }
+
+  if (["pending", "confirmed", "cancelled", "completed"].includes(normalized)) {
+    return normalized as Booking["status"];
+  }
+
+  return "pending";
+}
 
 export default function MyBookingsPage() {
   const router = useRouter();
   const { isAuthenticated, isTraveler, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState("confirmed");
+  const [activeTab, setActiveTab] = useState<Booking["status"]>("confirmed");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,24 +46,126 @@ export default function MyBookingsPage() {
 
   // Fetch user bookings
   useEffect(() => {
+    let active = true;
+
     const fetchBookings = async () => {
       try {
         setLoading(true);
+        setError(null);
+
         const response = await getUserBookings({ status: activeTab });
-        if (response.success) {
-          setBookings(response.data);
+
+        if (!response.success) {
+          if (active) {
+            setBookings([]);
+          }
+          return;
+        }
+
+        const payload: any = response.data;
+        let bookingItems: any[] = [];
+
+        if (Array.isArray(payload)) {
+          bookingItems = payload;
+        } else if (Array.isArray(payload?.bookings)) {
+          const rawBookings = payload.bookings;
+          const first = rawBookings[0];
+
+          if (typeof first === "number" || typeof first === "string") {
+            const details = await Promise.all(
+              rawBookings.map(async (id: number | string) => {
+                try {
+                  const bookingResponse = await getBookingById(Number(id));
+                  return bookingResponse.data;
+                } catch {
+                  return null;
+                }
+              })
+            );
+
+            bookingItems = details.filter(Boolean);
+          } else {
+            bookingItems = rawBookings;
+          }
+        }
+
+        const normalizedBookings: Booking[] = bookingItems
+          .map((booking: any) => ({
+            id: Number(booking.id),
+            property_id: Number(booking.property_id),
+            user_id: Number(booking.user_id ?? booking.traveler_id ?? 0),
+            check_in: String(booking.check_in ?? ""),
+            check_out: String(booking.check_out ?? ""),
+            guests: Number(booking.guests ?? booking.guest_count ?? 1),
+            total_price: Number(booking.total_price ?? 0),
+            status: normalizeBookingStatus(String(booking.status ?? "pending")),
+            created_at: String(booking.created_at ?? ""),
+            updated_at: String(booking.updated_at ?? ""),
+          }))
+          .filter((booking) => booking.id > 0);
+
+        const propertyIds = Array.from(
+          new Set(
+            normalizedBookings
+              .map((booking) => booking.property_id)
+              .filter((propertyId) => propertyId > 0)
+          )
+        );
+
+        const propertyEntries = await Promise.all(
+          propertyIds.map(async (propertyId) => {
+            try {
+              const propertyResponse = await getPropertyById(propertyId);
+              return [propertyId, propertyResponse.data] as const;
+            } catch {
+              return [propertyId, null] as const;
+            }
+          })
+        );
+
+        const propertyMap = new Map<number, any>(
+          propertyEntries.filter((entry): entry is readonly [number, any] => entry[1] !== null)
+        );
+
+        const hydratedBookings = normalizedBookings.map((booking) => {
+          const property = propertyMap.get(booking.property_id);
+          const firstImage = Array.isArray(property?.images) ? property.images[0] : "";
+
+          return {
+            ...booking,
+            property: property
+              ? {
+                  title: property.title || `Property #${booking.property_id}`,
+                  location: property.location || "Location unavailable",
+                  image: typeof firstImage === "string" ? firstImage : "",
+                }
+              : undefined,
+          };
+        });
+
+        if (active) {
+          setBookings(hydratedBookings);
         }
       } catch (err) {
         console.error('Error fetching bookings:', err);
-        setError('Failed to load bookings');
+        if (active) {
+          setError('Failed to load bookings');
+          setBookings([]);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
     if (isAuthenticated && isTraveler()) {
       fetchBookings();
     }
+
+    return () => {
+      active = false;
+    };
   }, [activeTab, isAuthenticated, isTraveler]);
 
   if (authLoading) {
@@ -55,7 +176,7 @@ export default function MyBookingsPage() {
     );
   }
 
-  const filtered = bookings;
+  const filtered = bookings.filter((booking) => booking.status === activeTab);
 
   /* ---------------- UI ---------------- */
 
@@ -78,7 +199,7 @@ export default function MyBookingsPage() {
 
           {/* TABS */}
           <div className="flex gap-6 border-b mb-8">
-            {["confirmed", "pending", "cancelled", "completed"].map((tab) => (
+            {(["confirmed", "pending", "cancelled", "completed"] as Booking["status"][]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -182,9 +303,10 @@ export default function MyBookingsPage() {
 
 /* ---------------- STATUS BADGE ---------------- */
 
-function StatusBadge({ status }: any) {
-  const styles: any = {
-    upcoming: "bg-blue-100 text-blue-700",
+function StatusBadge({ status }: { status: Booking["status"] }) {
+  const styles: Record<Booking["status"], string> = {
+    confirmed: "bg-blue-100 text-blue-700",
+    pending: "bg-amber-100 text-amber-700",
     completed: "bg-green-100 text-green-700",
     cancelled: "bg-slate-200 text-slate-600",
   };
