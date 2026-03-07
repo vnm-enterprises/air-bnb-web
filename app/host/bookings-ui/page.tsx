@@ -149,7 +149,7 @@ export default function BookingManagementUI() {
       {/* Top bar */}
       <header className="h-14 bg-white border-b border-slate-200 flex items-center">
         <div className="w-full px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition">
             <div className="h-9 w-9 rounded-lg bg-emerald-700 grid place-items-center">
               <Home className="h-4 w-4 text-white" />
             </div>
@@ -157,10 +157,14 @@ export default function BookingManagementUI() {
               <div className="text-sm font-semibold text-slate-900">Host Portal</div>
               <div className="text-[11px] text-slate-500">Manage your stays</div>
             </div>
-          </div>
+          </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-            <Link href="/host/dashboard" className="hover:text-slate-900">
+            <Link href="/" className="hover:text-slate-900">
+              Home
+            </Link>
+
+            <Link href="/host" className="hover:text-slate-900">
               Dashboard
             </Link>
             <Link href="/host/listings" className="hover:text-slate-900">

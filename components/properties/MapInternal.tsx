@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -8,10 +7,18 @@ import {
   Popup,
 } from "react-leaflet";
 
+export type MapItem = {
+  id: number;
+  title: string;
+  price: number;
+  lat: number;
+  lng: number;
+};
+
 export default function MapInternal({
   items,
 }: {
-  items: any[];
+  items: MapItem[];
 }) {
   return (
     <MapContainer

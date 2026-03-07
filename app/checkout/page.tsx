@@ -67,19 +67,24 @@ export default function CheckoutPage() {
         property_id: bookingData.property_id,
         check_in: bookingData.check_in,
         check_out: bookingData.check_out,
-        guests: bookingData.guests
+        guest_count: bookingData.guests
       });
 
       if (response.success) {
         localStorage.removeItem('pendingBooking');
-        router.push(`/checkout/success?bookingId=${response.data.id}`);
+        router.push(`/checkout/success?bookingId=${response.data.booking_id}`);
       }
     } catch (err: any) {
-      console.error('Booking error:', err);
-      setError(err.response?.data?.message || 'Failed to create booking');
-      setTimeout(() => {
-        router.push("/checkout/error");
-      }, 2000);
+      const statusCode = err?.response?.status;
+      const apiMessage = err?.response?.data?.message;
+
+      if (statusCode === 409) {
+        setError(apiMessage || 'Selected dates are no longer available. Please choose different dates.');
+      } else if (statusCode === 422) {
+        setError(apiMessage || 'Please review booking details and try again.');
+      } else {
+        setError(apiMessage || 'Failed to create booking');
+      }
     } finally {
       setLoading(false);
     }

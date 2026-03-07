@@ -262,7 +262,7 @@ export default function HostListingsPage() {
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
           {/* Brand */}
-          <div className="flex items-center gap-2 min-w-[140px]">
+          <Link href="/" className="flex items-center gap-2 min-w-[140px] hover:opacity-90 transition">
             <div className="text-slate-900">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                 <path
@@ -272,7 +272,7 @@ export default function HostListingsPage() {
               </svg>
             </div>
             <span className="text-sm font-semibold">StayManager</span>
-          </div>
+          </Link>
 
           {/* Search */}
           <div className="hidden md:flex items-center flex-1 max-w-[520px]">
@@ -290,7 +290,11 @@ export default function HostListingsPage() {
           {/* Nav */}
           <div className="flex items-center gap-6">
             <nav className="hidden sm:flex items-center gap-5 text-[11px] font-semibold text-slate-600">
-              <Link href="/host/dashboard" className="hover:text-slate-900">
+              <Link href="/" className="hover:text-slate-900">
+                Home
+              </Link>
+
+              <Link href="/host" className="hover:text-slate-900">
                 Dashboard
               </Link>
 

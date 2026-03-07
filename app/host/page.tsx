@@ -97,7 +97,7 @@ function getOverlappingNights(
 
 export default function HostDashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, isHost, loading, user } = useAuth();
+  const { isAuthenticated, isHost, loading, user, logout } = useAuth();
   const [q, setQ] = useState("");
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -108,6 +108,7 @@ export default function HostDashboardPage() {
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Redirect if not authenticated or not a host
   useEffect(() => {
@@ -296,6 +297,21 @@ export default function HostDashboardPage() {
     );
   }, [q, recentBookings]);
 
+  const handleLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+
+    try {
+      await logout();
+      router.push("/login");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -310,7 +326,7 @@ export default function HostDashboardPage() {
         {/* Sidebar */}
         <aside className="w-[240px] bg-white border-r border-slate-200 hidden md:flex flex-col">
           <div className="px-5 h-14 flex items-center border-b border-slate-200">
-            <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition">
               <div className="w-8 h-8 rounded-md bg-slate-900 text-white flex items-center justify-center">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                   <path
@@ -325,12 +341,12 @@ export default function HostDashboardPage() {
                   Property Manager
                 </div>
               </div>
-            </div>
+            </Link>
           </div>
 
           <div className="p-4">
             <div className="space-y-1">
-              <SideLink href="/host/dashboard" active icon={<LayoutGrid className="w-4 h-4" />}>
+              <SideLink href="/host" active icon={<LayoutGrid className="w-4 h-4" />}>
                 Dashboard
               </SideLink>
               <SideLink href="/host/listings" icon={<Home className="w-4 h-4" />}>
@@ -386,6 +402,21 @@ export default function HostDashboardPage() {
                   aria-label="Notifications"
                 >
                   <Bell className="w-4 h-4 text-slate-600" />
+                </button>
+
+                <Link
+                  href="/"
+                  className="inline-flex items-center bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-700 text-[11px] font-semibold px-3 py-2 rounded-md"
+                >
+                  Home
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="inline-flex items-center bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-700 text-[11px] font-semibold px-3 py-2 rounded-md disabled:opacity-60"
+                >
+                  {loggingOut ? "Logging out..." : "Logout"}
                 </button>
 
                 <Link

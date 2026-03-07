@@ -24,6 +24,14 @@ export interface BookingResponse {
   data: Booking;
 }
 
+export interface CreateBookingResponse {
+  success: boolean;
+  message: string;
+  data: {
+    booking_id: number;
+  };
+}
+
 export interface BookingsResponse {
   success: boolean;
   message: string;
@@ -95,7 +103,6 @@ export async function getBookingById(id: number): Promise<BookingResponse> {
     const response = await api.get<BookingResponse>(`/api/v1/bookings/${id}`);
     return response.data;
   } catch (error) {
-    console.error(`Error fetching booking ${id}:`, error);
     throw error;
   }
 }
@@ -107,13 +114,18 @@ export async function createBooking(data: {
   property_id: number;
   check_in: string;
   check_out: string;
-  guests: number;
-}): Promise<BookingResponse> {
+  guest_count?: number;
+  guests?: number;
+}): Promise<CreateBookingResponse> {
   try {
-    const response = await api.post<BookingResponse>('/api/v1/bookings', data);
+    const response = await api.post<CreateBookingResponse>('/api/v1/bookings', {
+      property_id: data.property_id,
+      check_in: data.check_in,
+      check_out: data.check_out,
+      guest_count: data.guest_count ?? data.guests ?? 1,
+    });
     return response.data;
   } catch (error) {
-    console.error('Error creating booking:', error);
     throw error;
   }
 }
@@ -139,7 +151,7 @@ export async function updateBooking(
  */
 export async function confirmBooking(id: number): Promise<BookingResponse> {
   try {
-    const response = await api.post<BookingResponse>(`/api/v1/bookings/${id}/confirm`);
+    const response = await api.post<BookingResponse>(`/api/v1/bookings/${id}/approved`);
     return response.data;
   } catch (error) {
     console.error(`Error confirming booking ${id}:`, error);
