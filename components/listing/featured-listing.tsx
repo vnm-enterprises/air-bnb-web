@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Star, Heart, ChevronRight } from "lucide-react";
 import { getProperties } from "@/lib/propertyApi";
 import type { Property } from "@/lib/propertyApi";
 
 export default function CuratedCollections() {
+  const router = useRouter();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,17 +36,17 @@ export default function CuratedCollections() {
 
   return (
     <section className="max-w-7xl mx-auto px-4 py-16">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
-        <div>
-          <h3 className="text-3xl font-extrabold text-slate-900  flex items-center">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-4">
+        <div className="flex-1">
+          <h3 className="text-3xl font-extrabold text-slate-900 flex items-center">
             <Star className="mr-2 h-6 w-6 text-yellow-500" />
             Curated Collections
           </h3>
-          <p className="text-slate-500  font-medium mt-2">
+          <p className="text-slate-500 font-medium mt-2">
             Discover our most exceptional retreats and urban escapes.
           </p>
         </div>
-        <button className="hidden md:flex items-center gap-2 text-[#2C5F5D] font-bold hover:gap-3 transition-all">
+        <button className="hidden md:flex items-center gap-2 text-[#2C5F5D] font-bold hover:gap-3 transition-all whitespace-nowrap">
           Explore all collections
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -63,11 +65,12 @@ export default function CuratedCollections() {
           properties.map((property, index) => (
             <div
               key={property.id}
-              className="group relative cursor-pointer"
+              className="group relative cursor-pointer flex flex-col h-full"
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
+              onClick={() => router.push(`/properties/${property.id}`)}
             >
-              <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-4">
+              <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-4 flex-shrink-0">
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
                   style={{
@@ -88,15 +91,15 @@ export default function CuratedCollections() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <h3 className="font-bold text-slate-900  text-lg line-clamp-1">
+              <div className="space-y-2 flex flex-col flex-1">
+                <h3 className="font-bold text-slate-900 text-lg line-clamp-2">
                   {property.title}
                 </h3>
-                <p className="text-sm text-slate-500 line-clamp-1">
+                <p className="text-sm text-slate-500 line-clamp-2">
                   {property.location}
                 </p>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mt-auto pt-2">
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 text-yellow-500" />
                     <span className="text-xs font-bold">
@@ -108,7 +111,13 @@ export default function CuratedCollections() {
                   </div>
                 </div>
 
-                <button className="w-full border border-slate-300  text-slate-700  py-2 rounded-lg font-medium hover:bg-slate-100 transition-colors">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/properties/${property.id}`);
+                  }}
+                  className="w-full border border-slate-300 text-slate-700 py-2 rounded-lg font-medium hover:bg-slate-100 transition-colors mt-auto"
+                >
                   Details
                 </button>
               </div>
