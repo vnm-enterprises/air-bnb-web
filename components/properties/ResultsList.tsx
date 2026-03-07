@@ -6,49 +6,6 @@ import { Star } from "lucide-react";
 import { getProperties } from "@/lib/propertyApi";
 import type { Property } from "@/lib/propertyApi";
 
-// Keep dummyData for MapView compatibility only
-export const dummyData = [
-  {
-    id: 1,
-    title: "Modern Minimalist Villa with Ocean View",
-    location: "Malibu, California",
-    price: 1250,
-    rating: 4.92,
-    reviews: 36,
-    excerpt:
-      "Welcome to your private oasis in the heart of Malibu. This architectural masterpiece offers panoramic views of the Pacific Ocean through floor-to-ceiling glass walls. Designed with a focus on minimalism and natural materials in every corner of this villa tranquility.",
-    amenities: [
-      "Ocean view",
-      "Private infinity pool",
-      "Chef's kitchen",
-      "High-speed Wi-Fi",
-      "Smart home automation",
-      "Spa",
-    ],
-    description:
-      "Welcome to your private oasis in the heart of Malibu. This architectural masterpiece offers panoramic views of the Pacific Ocean through floor-to-ceiling glass walls. Designed with a focus on minimalism and natural materials in every corner of this villa tranquility.",
-    hostedBy: "Julian",
-    hostRating: 4.92,
-    hostReviews: 482,
-    hostImage:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop",
-    hostSuperhost: true,
-    hostResponseTime: "within an hour",
-    lat: 34.0195,
-    lng: -118.8631,
-    image:
-      "https://images.unsplash.com/photo-1613395877344-13d4a8e0d049?q=80&w=1200&auto=format&fit=crop",
-    type: "Villa",
-    details: "10 guests • 5 bedrooms • 4 bathrooms",
-    checkInDate: "Dec 2, 2025",
-    checkOutDate: "Dec 7, 2025",
-    costPerNight: 1250,
-    cleaningFee: 350,
-    serviceFee: 845,
-    totalCost: 7445,
-  },
-];
-
 export default function ResultsList() {
   const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);

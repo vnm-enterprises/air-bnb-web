@@ -196,7 +196,7 @@ export default function HostListingsPage() {
       {/* Top bar */}
       <header className="h-14 bg-white border-b border-slate-200 flex items-center">
         <div className="w-full px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition">
             <div className="h-9 w-9 rounded-lg bg-emerald-700 grid place-items-center">
               <Home className="h-4 w-4 text-white" />
             </div>
@@ -204,7 +204,7 @@ export default function HostListingsPage() {
               <div className="text-sm font-semibold text-slate-900">Host Portal</div>
               <div className="text-[11px] text-slate-500">Manage your stays</div>
             </div>
-          </div>
+          </Link>
 
           <div className="hidden md:flex items-center gap-3 w-[520px]">
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 w-full">
@@ -230,6 +230,13 @@ export default function HostListingsPage() {
             </button>
 
             <Link
+              href="/"
+              className="inline-flex items-center h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-sm text-slate-700"
+            >
+              Home
+            </Link>
+
+            <Link
               href="/host/add-property/basics"
               className="ml-2 inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-sm shadow-sm"
             >
@@ -246,7 +253,7 @@ export default function HostListingsPage() {
         <aside className="col-span-12 md:col-span-3 lg:col-span-2 bg-white border-r border-slate-200 min-h-[calc(100vh-56px)]">
           <div className="p-4 space-y-2">
             <SidebarItem
-              href="/host/dashboard"
+              href="/host"
               label="Dashboard"
               icon={<LayoutGrid className="h-4 w-4 text-slate-600" />}
             />
