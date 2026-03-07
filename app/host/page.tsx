@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { getHostBookings, getBookingById } from "@/lib/bookingApi";
+import { getProperties, getPropertyById } from "@/lib/propertyApi";
 import {
   Search,
   Bell,
@@ -15,7 +19,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 
-type BookingStatus = "Confirmed" | "Pending";
+type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
 
 type RecentBooking = {
   id: string;
@@ -28,52 +32,277 @@ type RecentBooking = {
   status: BookingStatus;
 };
 
-const RECENT: RecentBooking[] = [
-  {
-    id: "1",
-    guest: "Sarah Jenkins",
-    guestsMeta: "2 guests",
-    property: "Ocean View Villa",
-    location: "Malibu, CA",
-    dates: "Oct 12 - Oct 15",
-    amount: "$1,240.00",
-    status: "Confirmed",
-  },
-  {
-    id: "2",
-    guest: "Marcus Chen",
-    guestsMeta: "1 guest",
-    property: "Urban Loft",
-    location: "Austin, TX",
-    dates: "Oct 18 - Oct 20",
-    amount: "$450.00",
-    status: "Pending",
-  },
-  {
-    id: "3",
-    guest: "David Miller",
-    guestsMeta: "4 guests",
-    property: "Mountain Retreat",
-    location: "Aspen, CO",
-    dates: "Nov 02 - Nov 07",
-    amount: "$2,160.00",
-    status: "Confirmed",
-  },
-];
+type DashboardStats = {
+  monthlyEarnings: number;
+  occupancyRate: number;
+  totalListings: number;
+  pendingCount: number;
+};
+
+function toDashboardStatus(status: string): BookingStatus {
+  if (["approved", "confirmed", "completed"].includes(status)) {
+    return "Confirmed";
+  }
+
+  if (["cancelled", "rejected", "refunded"].includes(status)) {
+    return "Cancelled";
+  }
+
+  return "Pending";
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatDateRange(checkIn: string, checkOut: string): string {
+  const inDate = new Date(checkIn);
+  const outDate = new Date(checkOut);
+
+  if (Number.isNaN(inDate.getTime()) || Number.isNaN(outDate.getTime())) {
+    return "Dates unavailable";
+  }
+
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "2-digit" };
+  return `${inDate.toLocaleDateString("en-US", opts)} - ${outDate.toLocaleDateString("en-US", opts)}`;
+}
+
+function getOverlappingNights(
+  checkIn: string,
+  checkOut: string,
+  monthStart: Date,
+  monthEnd: Date
+): number {
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 0;
+  }
+
+  const overlapStart = new Date(Math.max(start.getTime(), monthStart.getTime()));
+  const overlapEnd = new Date(Math.min(end.getTime(), monthEnd.getTime()));
+  const diff = overlapEnd.getTime() - overlapStart.getTime();
+
+  if (diff <= 0) {
+    return 0;
+  }
+
+  return diff / (1000 * 60 * 60 * 24);
+}
 
 export default function HostDashboardPage() {
+  const router = useRouter();
+  const { isAuthenticated, isHost, loading, user } = useAuth();
   const [q, setQ] = useState("");
+  const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
+    monthlyEarnings: 0,
+    occupancyRate: 0,
+    totalListings: 0,
+    pendingCount: 0,
+  });
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+
+  // Redirect if not authenticated or not a host
+  useEffect(() => {
+    if (!loading && (!isAuthenticated || !isHost())) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isHost, loading, router]);
+
+  useEffect(() => {
+    if (loading || !isAuthenticated || !isHost()) {
+      return;
+    }
+
+    let active = true;
+
+    const fetchDashboardData = async () => {
+      setDataLoading(true);
+      setDataError(null);
+
+      try {
+        const hostBookingsResponse = await getHostBookings({ page: 1, per_page: 20 });
+        const hostBookingsPayload: any = hostBookingsResponse?.data;
+
+        let bookingIds: number[] = [];
+        let bookingItems: any[] = [];
+
+        if (Array.isArray(hostBookingsPayload)) {
+          bookingItems = hostBookingsPayload;
+        } else if (Array.isArray(hostBookingsPayload?.bookings)) {
+          const first = hostBookingsPayload.bookings[0];
+          if (typeof first === "number") {
+            bookingIds = hostBookingsPayload.bookings;
+          } else {
+            bookingItems = hostBookingsPayload.bookings;
+          }
+        }
+
+        if (bookingIds.length > 0) {
+          const detailResponses = await Promise.all(
+            bookingIds.map(async (id) => {
+              try {
+                const res = await getBookingById(id);
+                return res.data;
+              } catch {
+                return null;
+              }
+            })
+          );
+
+          bookingItems = detailResponses.filter(Boolean);
+        }
+
+        const normalizedBookings = bookingItems
+          .map((booking: any) => ({
+            id: Number(booking.id),
+            property_id: Number(booking.property_id),
+            traveler_id: Number(booking.traveler_id ?? booking.user_id ?? 0),
+            check_in: String(booking.check_in ?? ""),
+            check_out: String(booking.check_out ?? ""),
+            guest_count: Number(booking.guest_count ?? booking.guests ?? 0),
+            total_price: Number(booking.total_price ?? 0),
+            status: String(booking.status ?? "pending").toLowerCase(),
+          }))
+          .filter((booking) => booking.id > 0 && booking.property_id > 0);
+
+        const propertyIds = Array.from(
+          new Set(normalizedBookings.map((booking) => booking.property_id))
+        );
+
+        const propertyEntries = await Promise.all(
+          propertyIds.map(async (propertyId) => {
+            try {
+              const propertyResponse = await getPropertyById(propertyId);
+              return [propertyId, propertyResponse.data] as const;
+            } catch {
+              return [propertyId, null] as const;
+            }
+          })
+        );
+
+        const propertyMap = new Map<number, any>(
+          propertyEntries.filter((entry): entry is readonly [number, any] => entry[1] !== null)
+        );
+
+        const rowsFromApi: RecentBooking[] = normalizedBookings.map((booking) => {
+          const property = propertyMap.get(booking.property_id);
+
+          return {
+            id: String(booking.id),
+            guest: booking.traveler_id ? `Guest #${booking.traveler_id}` : `Guest #${booking.id}`,
+            guestsMeta: `${booking.guest_count || 0} guests`,
+            property: property?.title || `Property #${booking.property_id}`,
+            location: property?.location || "Location unavailable",
+            dates: formatDateRange(booking.check_in, booking.check_out),
+            amount: formatCurrency(booking.total_price),
+            status: toDashboardStatus(booking.status),
+          };
+        });
+
+        const firstPropertiesPage = await getProperties({ page: 1, per_page: 50 });
+        const propertiesPageCount = firstPropertiesPage.data.pagination.pages || 1;
+
+        const allProperties = [...firstPropertiesPage.data.properties];
+        if (propertiesPageCount > 1) {
+          const propertyPageRequests: Promise<any>[] = [];
+          for (let page = 2; page <= propertiesPageCount; page += 1) {
+            propertyPageRequests.push(getProperties({ page, per_page: 50 }));
+          }
+
+          const additionalPages = await Promise.all(propertyPageRequests);
+          additionalPages.forEach((pageRes) => {
+            allProperties.push(...pageRes.data.properties);
+          });
+        }
+
+        const hostProperties = allProperties.filter(
+          (property) => property.host_id === user?.id
+        );
+
+        const confirmedBookings = normalizedBookings.filter(
+          (booking) => toDashboardStatus(booking.status) === "Confirmed"
+        );
+        const pendingCount = normalizedBookings.filter(
+          (booking) => toDashboardStatus(booking.status) === "Pending"
+        ).length;
+
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+        const monthlyEarnings = confirmedBookings.reduce((sum, booking) => {
+          const checkIn = new Date(booking.check_in);
+          if (checkIn >= monthStart && checkIn < monthEnd) {
+            return sum + booking.total_price;
+          }
+          return sum;
+        }, 0);
+
+        const bookedNights = confirmedBookings.reduce((sum, booking) => {
+          return sum + getOverlappingNights(booking.check_in, booking.check_out, monthStart, monthEnd);
+        }, 0);
+
+        const occupancyRate = hostProperties.length
+          ? Math.round((bookedNights / (hostProperties.length * daysInMonth)) * 100)
+          : 0;
+
+        if (!active) {
+          return;
+        }
+
+        setRecentBookings(rowsFromApi);
+        setStats({
+          monthlyEarnings,
+          occupancyRate: Math.max(0, Math.min(100, occupancyRate)),
+          totalListings: hostProperties.length,
+          pendingCount,
+        });
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setDataError("Failed to load dashboard data");
+      } finally {
+        if (active) {
+          setDataLoading(false);
+        }
+      }
+    };
+
+    fetchDashboardData();
+
+    return () => {
+      active = false;
+    };
+  }, [loading, isAuthenticated, isHost, user?.id]);
 
   const rows = useMemo(() => {
     const x = q.trim().toLowerCase();
-    if (!x) return RECENT;
-    return RECENT.filter(
+    if (!x) return recentBookings;
+    return recentBookings.filter(
       (r) =>
         r.guest.toLowerCase().includes(x) ||
         r.property.toLowerCase().includes(x) ||
         r.location.toLowerCase().includes(x)
     );
-  }, [q]);
+  }, [q, recentBookings]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f4f4] text-slate-900">
@@ -159,10 +388,13 @@ export default function HostDashboardPage() {
                   <Bell className="w-4 h-4 text-slate-600" />
                 </button>
 
-                <button className="inline-flex items-center gap-2 bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-2 rounded-md">
+                <Link
+                  href="/host/add-property/basics"
+                  className="inline-flex items-center gap-2 bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-2 rounded-md"
+                >
                   <Plus className="w-4 h-4" />
                   Add New Listing
-                </button>
+                </Link>
               </div>
             </div>
           </header>
@@ -174,17 +406,36 @@ export default function HostDashboardPage() {
               Here&apos;s a snapshot of your property performance today.
             </p>
 
+            {dataError && (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+                {dataError}
+              </div>
+            )}
+
             {/* Stat cards */}
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 title="Monthly Earnings"
-                value="$12,450.00"
-                meta="+12.5%"
-                metaGood
+                value={formatCurrency(stats.monthlyEarnings)}
+                meta={stats.monthlyEarnings > 0 ? "Live" : "No confirmed bookings"}
+                metaGood={stats.monthlyEarnings > 0}
               />
-              <StatCard title="Occupancy Rate" value="88%" withBar />
-              <StatCard title="Total Listings" value="12" sub="Active across 3 cities" />
-              <StatCard title="New Messages" value="5" meta="2 Urgent" metaGood />
+              <StatCard
+                title="Occupancy Rate"
+                value={`${stats.occupancyRate}%`}
+                withBar
+                barWidth={stats.occupancyRate}
+              />
+              <StatCard
+                title="Total Listings"
+                value={String(stats.totalListings)}
+                sub={stats.totalListings > 0 ? "Live from API" : "No active listings"}
+              />
+              <StatCard
+                title="New Messages"
+                value={String(stats.pendingCount)}
+                meta={`${stats.pendingCount} Pending`}
+              />
             </div>
 
             {/* Recent bookings table */}
@@ -214,58 +465,69 @@ export default function HostDashboardPage() {
                     </thead>
 
                     <tbody className="text-[12px]">
-                      {rows.map((r) => (
-                        <tr
-                          key={r.id}
-                          className="border-b border-slate-100 last:border-b-0"
-                        >
-                          <td className="py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
-                                🙂
-                              </div>
-                              <div>
-                                <div className="font-semibold text-slate-900">
-                                  {r.guest}
-                                </div>
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  {r.guestsMeta}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="py-4">
-                            <div className="text-slate-900 font-semibold">
-                              {r.property}
-                            </div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              {r.location}
-                            </div>
-                          </td>
-
-                          <td className="py-4 text-slate-700">{r.dates}</td>
-
-                          <td className="py-4 font-bold text-slate-900">{r.amount}</td>
-
-                          <td className="py-4">
-                            <StatusPill status={r.status} />
-                          </td>
-
-                          <td className="py-4">
-                            <div className="flex justify-end">
-                              <button
-                                className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                                aria-label="More"
-                              >
-                                <MoreHorizontal className="w-4 h-4 text-slate-500" />
-                              </button>
-                            </div>
+                      {dataLoading ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-10 text-center text-[12px] text-slate-500"
+                          >
+                            Loading dashboard data...
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        rows.map((r) => (
+                          <tr
+                            key={r.id}
+                            className="border-b border-slate-100 last:border-b-0"
+                          >
+                            <td className="py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
+                                  🙂
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-slate-900">
+                                    {r.guest}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    {r.guestsMeta}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
 
-                      {rows.length === 0 && (
+                            <td className="py-4">
+                              <div className="text-slate-900 font-semibold">
+                                {r.property}
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {r.location}
+                              </div>
+                            </td>
+
+                            <td className="py-4 text-slate-700">{r.dates}</td>
+
+                            <td className="py-4 font-bold text-slate-900">{r.amount}</td>
+
+                            <td className="py-4">
+                              <StatusPill status={r.status} />
+                            </td>
+
+                            <td className="py-4">
+                              <div className="flex justify-end">
+                                <button
+                                  className="p-1.5 rounded-md hover:bg-slate-100 transition"
+                                  aria-label="More"
+                                >
+                                  <MoreHorizontal className="w-4 h-4 text-slate-500" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+
+                      {!dataLoading && rows.length === 0 && (
                         <tr>
                           <td
                             colSpan={6}
@@ -327,6 +589,7 @@ function StatCard({
   meta,
   metaGood,
   withBar,
+  barWidth,
 }: {
   title: string;
   value: string;
@@ -334,6 +597,7 @@ function StatCard({
   meta?: string;
   metaGood?: boolean;
   withBar?: boolean;
+  barWidth?: number;
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -348,7 +612,10 @@ function StatCard({
 
       {withBar && (
         <div className="mt-3 h-2 rounded-full bg-slate-100 border border-slate-200 overflow-hidden">
-          <div className="h-full bg-[#2C5F5D]" style={{ width: "88%" }} />
+          <div
+            className="h-full bg-[#2C5F5D]"
+            style={{ width: `${Math.max(0, Math.min(100, barWidth ?? 88))}%` }}
+          />
         </div>
       )}
 
@@ -373,6 +640,8 @@ function StatusPill({ status }: { status: BookingStatus }) {
   const styles =
     status === "Confirmed"
       ? "bg-[#2C5F5D] text-white"
+      : status === "Cancelled"
+      ? "bg-slate-200 text-slate-700 border border-slate-300"
       : "bg-[#F7E7B7] text-[#7A5A00] border border-[#F0D98B]";
 
   return (

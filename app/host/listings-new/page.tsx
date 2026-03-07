@@ -229,10 +229,13 @@ export default function HostListingsPage() {
               <Bell className="h-4 w-4 text-slate-600" />
             </button>
 
-            <button className="ml-2 inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-sm shadow-sm">
+            <Link
+              href="/host/add-property/basics"
+              className="ml-2 inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-sm shadow-sm"
+            >
               <Plus className="h-4 w-4" />
               Add New Listing
-            </button>
+            </Link>
           </div>
         </div>
       </header>

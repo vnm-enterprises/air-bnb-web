@@ -7,10 +7,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker, DateRange } from "react-day-picker";
 import { differenceInDays } from "date-fns";
+import { useAuth } from "@/context/AuthContext";
 import "react-day-picker/dist/style.css";
 
 export default function PropertyPage() {
   const router = useRouter();
+  const { isHost, isAuthenticated } = useAuth();
 
   /* ---------------- BACKEND MOCK DATA ---------------- */
 
@@ -248,82 +250,147 @@ export default function PropertyPage() {
           </div>
 
           {/* BOOKING CARD */}
-          <div className="border rounded-2xl p-6 shadow-lg sticky top-24 h-fit">
+          {!isHost() ? (
+            <div className="border rounded-2xl p-6 shadow-lg sticky top-24 h-fit">
 
-            <div className="flex justify-between items-center">
-              <div className="text-xl font-semibold">
-                ${property.price}
-                <span className="text-sm font-normal">
-                  {" "} / night
-                </span>
-              </div>
-              <div className="text-sm flex items-center gap-1">
-                <Star size={14} className="fill-black" />
-                {property.rating}
-              </div>
-            </div>
-
-            {/* CALENDAR */}
-            <div className="mt-6 border rounded-xl p-4">
-              <DayPicker
-                mode="range"
-                selected={range}
-                onSelect={setRange}
-              />
-            </div>
-
-            {/* GUESTS */}
-            <div className="mt-4">
-              <label className="text-xs text-gray-500">
-                Guests
-              </label>
-              <select
-                value={guests}
-                onChange={(e) =>
-                  setGuests(Number(e.target.value))
-                }
-                className="w-full border rounded-lg p-3 mt-1 text-sm"
-              >
-                {[1,2,3,4,5,6,7,8,9,10].map((g) => (
-                  <option key={g} value={g}>
-                    {g} guests
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={() => router.push("/checkout")}
-              className="mt-6 w-full bg-[#306966] text-white py-3 rounded-lg font-medium"
-            >
-              Reserve Now
-            </button>
-
-            {nights > 0 && (
-              <div className="mt-6 text-sm space-y-2">
-                <div className="flex justify-between">
-                  <span>
-                    ${property.price} × {nights} nights
+              <div className="flex justify-between items-center">
+                <div className="text-xl font-semibold">
+                  ${property.price}
+                  <span className="text-sm font-normal">
+                    {" "} / night
                   </span>
-                  <span>${subtotal}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Cleaning fee</span>
-                  <span>${cleaningFee}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Staybnb service fee</span>
-                  <span>${serviceFee}</span>
-                </div>
-                <hr />
-                <div className="flex justify-between font-semibold">
-                  <span>Total before taxes</span>
-                  <span>${total}</span>
+                <div className="text-sm flex items-center gap-1">
+                  <Star size={14} className="fill-black" />
+                  {property.rating}
                 </div>
               </div>
-            )}
 
-          </div>
+              {/* CALENDAR */}
+              <div className="mt-6 border rounded-xl p-4">
+                <DayPicker
+                  mode="range"
+                  selected={range}
+                  onSelect={setRange}
+                />
+              </div>
+
+              {/* GUESTS */}
+              <div className="mt-4">
+                <label className="text-xs text-gray-500">
+                  Guests
+                </label>
+                <select
+                  value={guests}
+                  onChange={(e) =>
+                    setGuests(Number(e.target.value))
+                  }
+                  className="w-full border rounded-lg p-3 mt-1 text-sm"
+                >
+                  {[1,2,3,4,5,6,7,8,9,10].map((g) => (
+                    <option key={g} value={g}>
+                      {g} guests
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    router.push('/login');
+                  } else {
+                    if (!range?.from || !range?.to) {
+                      alert('Please select check-in and check-out dates');
+                      return;
+                    }
+                    
+                    // Prepare booking data
+                    const bookingData = {
+                      property_id: property.id,
+                      check_in: range.from.toISOString().split('T')[0],
+                      check_out: range.to.toISOString().split('T')[0],
+                      guests: guests,
+                      propertyTitle: property.title,
+                      propertyLocation: property.location,
+                      propertyImage: property.images[0] + "?auto=format&fit=crop&w=300&q=80",
+                      pricePerNight: property.price,
+                      nights: nights,
+                      cleaningFee: cleaningFee,
+                      serviceFee: serviceFee,
+                      total: total
+                    };
+                    
+                    // Save to localStorage
+                    localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
+                    
+                    // Navigate to checkout
+                    router.push('/checkout');
+                  }
+                }}
+                className="mt-6 w-full bg-[#306966] text-white py-3 rounded-lg font-medium hover:bg-[#244f4d] transition"
+              >
+                {isAuthenticated ? 'Reserve Now' : 'Login to Book'}
+              </button>
+
+              {nights > 0 && (
+                <div className="mt-6 text-sm space-y-2">
+                  <div className="flex justify-between">
+                    <span>
+                      ${property.price} × {nights} nights
+                    </span>
+                    <span>${subtotal}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cleaning fee</span>
+                    <span>${cleaningFee}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Staybnb service fee</span>
+                    <span>${serviceFee}</span>
+                  </div>
+                  <hr />
+                  <div className="flex justify-between font-semibold">
+                    <span>Total before taxes</span>
+                    <span>${total}</span>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          ) : (
+            /* MESSAGE FOR HOSTS */
+            <div className="border rounded-2xl p-6 shadow-lg sticky top-24 h-fit bg-slate-50">
+              <div className="flex justify-between items-center mb-4">
+                <div className="text-xl font-semibold">
+                  ${property.price}
+                  <span className="text-sm font-normal">
+                    {" "} / night
+                  </span>
+                </div>
+                <div className="text-sm flex items-center gap-1">
+                  <Star size={14} className="fill-black" />
+                  {property.rating}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900 font-medium mb-2">
+                  Host Account
+                </p>
+                <p className="text-xs text-blue-700">
+                  As a host, you cannot book properties. Switch to a traveler account or create a separate account to make bookings.
+                </p>
+              </div>
+
+              <button
+                onClick={() => router.push('/host')}
+                className="mt-4 w-full bg-[#306966] text-white py-3 rounded-lg font-medium hover:bg-[#244f4d] transition"
+              >
+                Go to Host Dashboard
+              </button>
+            </div>
+          )}
         </div>
       </main>
 

@@ -1,12 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login, isAuthenticated } = useAuth();
+  
   const [showPw, setShowPw] = useState(false);
-  const [role, setRole] = useState<"user" | "host">("user");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState(searchParams.get("message") || "");
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/properties");
+    }
+  }, [isAuthenticated, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // Validation
+    if (!email.trim()) {
+      setError("Email is required");
+      setLoading(false);
+      return;
+    }
+    if (!password) {
+      setError("Password is required");
+      setLoading(false);
+      return;
+    }
+
+    // Call login from context
+    const res = await login(email, password);
+    
+    if (res.success) {
+      // Redirect to properties or dashboard
+      router.push("/properties");
+    } else {
+      setError(res.message || "Login failed");
+    }
+    
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f4f4] flex">
@@ -37,103 +84,84 @@ export default function LoginPage() {
               Access your account to continue.
             </p>
 
-            {/* ROLE SELECTOR */}
-            <div className="mt-6 bg-slate-100 rounded-lg p-1 flex text-sm font-semibold">
-              <button
-                onClick={() => setRole("user")}
-                className={`flex-1 py-2 rounded-md transition ${
-                  role === "user"
-                    ? "bg-white shadow text-[#2C5F5D]"
-                    : "text-slate-600"
-                }`}
-              >
-                User
-              </button>
-
-              <button
-                onClick={() => setRole("host")}
-                className={`flex-1 py-2 rounded-md transition ${
-                  role === "host"
-                    ? "bg-white shadow text-[#2C5F5D]"
-                    : "text-slate-600"
-                }`}
-              >
-                Host
-              </button>
-            </div>
+            {message && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-blue-700 text-[12px]">{message}</p>
+              </div>
+            )}
 
             {/* FORM */}
-            <div className="mt-8 space-y-5">
+            <form onSubmit={handleSubmit}>
+              <div className="mt-8 space-y-5">
 
-              <div>
-                <label className="text-xs font-semibold text-slate-700">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="name@email.com"
-                  className="mt-2 w-full h-11 px-4 rounded-lg border border-slate-200 focus:border-[#2C5F5D] outline-none"
-                />
-              </div>
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-red-700 text-[12px] font-semibold">{error}</p>
+                  </div>
+                )}
 
-              <div>
-                <div className="flex justify-between items-center">
+                <div>
                   <label className="text-xs font-semibold text-slate-700">
-                    Password
+                    Email Address
                   </label>
-                  <button className="text-xs font-semibold text-[#2C5F5D] hover:underline">
-                    Forgot?
-                  </button>
-                </div>
-
-                <div className="mt-2 relative">
                   <input
-                    type={showPw ? "text" : "password"}
-                    placeholder="Enter your password"
-                    className="w-full h-11 px-4 pr-12 rounded-lg border border-slate-200 focus:border-[#2C5F5D] outline-none"
+                    type="email"
+                    placeholder="name@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="mt-2 w-full h-11 px-4 rounded-lg border border-slate-200 focus:border-[#2C5F5D] outline-none"
+                    disabled={loading}
                   />
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                  >
-                    {showPw ? (
-                      <EyeOff className="w-4 h-4 text-slate-500" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-slate-500" />
-                    )}
-                  </button>
                 </div>
+
+                <div>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Password
+                    </label>
+                    <Link 
+                      href="/forgot-password"
+                      className="text-xs font-semibold text-[#2C5F5D] hover:underline"
+                    >
+                      Forgot?
+                    </Link>
+                  </div>
+
+                  <div className="mt-2 relative">
+                    <input
+                      type={showPw ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full h-11 px-4 pr-12 rounded-lg border border-slate-200 focus:border-[#2C5F5D] outline-none"
+                      disabled={loading}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPw(!showPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                      disabled={loading}
+                    >
+                      {showPw ? (
+                        <EyeOff className="w-4 h-4 text-slate-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-500" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 rounded-lg bg-[#2C5F5D] hover:bg-[#244f4d] disabled:opacity-50 text-white font-semibold transition"
+                >
+                  {loading ? "Signing In..." : "Sign In"}
+                </button>
+
               </div>
-
-              <button className="w-full h-12 rounded-lg bg-[#2C5F5D] hover:bg-[#244f4d] text-white font-semibold transition">
-                Sign In as {role === "user" ? "User" : "Host"}
-              </button>
-
-            </div>
-
-            {/* DIVIDER */}
-            <div className="mt-8 flex items-center gap-4">
-              <div className="h-px bg-slate-200 flex-1" />
-              <span className="text-xs text-slate-400">
-                Or continue with
-              </span>
-              <div className="h-px bg-slate-200 flex-1" />
-            </div>
-
-            {/* SOCIAL */}
-            <div className="mt-6 grid grid-cols-2 gap-4">
-
-              <button className="h-11 border border-slate-200 rounded-lg hover:bg-slate-50 transition font-semibold text-sm">
-                Google
-              </button>
-
-              <button className="h-11 border border-slate-200 rounded-lg hover:bg-slate-50 transition font-semibold text-sm">
-                Apple
-              </button>
-
-            </div>
+            </form>
 
             <p className="mt-8 text-center text-xs text-slate-500">
               Don&apos;t have an account?{" "}

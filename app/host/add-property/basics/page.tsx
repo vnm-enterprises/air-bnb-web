@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin, Plus, Minus } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { createProperty } from "@/lib/propertyApi";
 
 type Step = { n: number; label: string };
 
@@ -15,12 +18,80 @@ const STEPS: Step[] = [
 ];
 
 export default function AddPropertyBasicsPage() {
+  const router = useRouter();
+  const { isAuthenticated, isHost } = useAuth();
+  
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [desc, setDesc] = useState("");
   const [address, setAddress] = useState("");
+  const [price, setPrice] = useState("");
+  const [guests, setGuests] = useState("4");
+  const [bedrooms, setBedrooms] = useState("2");
+  const [bathrooms, setBathrooms] = useState("2");
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [imageUrl, setImageUrl] = useState("");
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isHost()) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isHost, router]);
 
   const remaining = useMemo(() => Math.max(0, 500 - desc.length), [desc]);
+
+  const handleAmenityToggle = (amenity: string) => {
+    setAmenities(prev => 
+      prev.includes(amenity) 
+        ? prev.filter(a => a !== amenity)
+        : [...prev, amenity]
+    );
+  };
+
+  const handleSubmit = async () => {
+    setError(null);
+    
+    // Validation
+    if (!title || !desc || !address || !price) {
+      setError("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const propertyData = {
+        title,
+        description: desc,
+        location: address,
+        price: parseFloat(price),
+        max_guests: parseInt(guests),
+        bedrooms: parseInt(bedrooms),
+        bathrooms: parseFloat(bathrooms),
+        amenities: amenities.length > 0 ? amenities : ["WiFi", "Kitchen"],
+        images: imageUrl ? [imageUrl] : ["https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80"],
+        status: "pending"
+      };
+
+      const response = await createProperty(propertyData);
+      
+      if (response.success) {
+        setSuccess(true);
+        setTimeout(() => {
+          router.push('/host/listings');
+        }, 2000);
+      }
+    } catch (err: any) {
+      console.error('Error creating property:', err);
+      setError(err.response?.data?.message || 'Failed to create property. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f4f4] text-slate-900">
@@ -162,6 +233,99 @@ export default function AddPropertyBasicsPage() {
                     {desc.length} / 500 characters
                   </div>
                 </div>
+
+                {/* Additional Fields */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700">
+                      Price per Night ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="250"
+                      className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700">
+                      Max Guests
+                    </label>
+                    <input
+                      type="number"
+                      value={guests}
+                      onChange={(e) => setGuests(e.target.value)}
+                      placeholder="4"
+                      className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700">
+                      Bedrooms
+                    </label>
+                    <input
+                      type="number"
+                      value={bedrooms}
+                      onChange={(e) => setBedrooms(e.target.value)}
+                      placeholder="2"
+                      className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700">
+                      Bathrooms
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={bathrooms}
+                      onChange={(e) => setBathrooms(e.target.value)}
+                      placeholder="2"
+                      className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700">
+                    Amenities
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {['WiFi', 'Kitchen', 'Pool', 'Parking', 'AC', 'TV', 'Gym', 'Hot Tub'].map(amenity => (
+                      <button
+                        key={amenity}
+                        type="button"
+                        onClick={() => handleAmenityToggle(amenity)}
+                        className={`px-3 py-1.5 text-[11px] rounded-md border transition ${
+                          amenities.includes(amenity)
+                            ? 'bg-[#2C5F5D] text-white border-[#2C5F5D]'
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {amenity}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700">
+                    Property Image URL (optional)
+                  </label>
+                  <input
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Leave blank to use a default image
+                  </p>
+                </div>
               </div>
             </section>
 
@@ -221,26 +385,42 @@ export default function AddPropertyBasicsPage() {
             </section>
           </div>
 
+          {/* Status Messages */}
+          {error && (
+            <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+              Property created successfully! Redirecting to your listings...
+            </div>
+          )}
+
           {/* Bottom actions */}
           <div className="mt-8 border-t border-slate-200 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <Link
-              href="/host/properties"
+              href="/host"
               className="text-[12px] text-slate-500 hover:text-slate-700 transition"
             >
-              Back
+              ← Back to Dashboard
             </Link>
 
             <div className="flex items-center gap-3 justify-end">
-              <button className="bg-white border border-slate-200 hover:bg-slate-50 transition text-[11px] font-semibold px-4 py-2 rounded-md text-slate-700">
-                Save as Draft
+              <button 
+                onClick={() => router.push('/host')}
+                className="bg-white border border-slate-200 hover:bg-slate-50 transition text-[11px] font-semibold px-4 py-2 rounded-md text-slate-700"
+              >
+                Cancel
               </button>
 
-              <Link
-                href="/host/add-property/photos"
-                className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-4 py-2 rounded-md inline-flex items-center gap-2"
+              <button
+                onClick={handleSubmit}
+                disabled={loading || success}
+                className="bg-[#2C5F5D] hover:bg-[#244f4d] disabled:bg-slate-300 disabled:cursor-not-allowed transition text-white text-[11px] font-semibold px-4 py-2 rounded-md inline-flex items-center gap-2"
               >
-                Continue to Photos →
-              </Link>
+                {loading ? 'Creating Property...' : success ? 'Property Created!' : 'Create Property'}
+              </button>
             </div>
           </div>
         </div>

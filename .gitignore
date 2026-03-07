@@ -14,8 +14,10 @@
 /coverage
 
 # next.js
-/.next/
+/.next
 /out/
+.rscinfo
+next-devtools-config.json
 
 # production
 /build

@@ -124,9 +124,12 @@ export default function HostBookingsPage() {
               </Link>
             </nav>
 
-            <button className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-1.5 rounded-md">
+            <Link
+              href="/host/add-property/basics"
+              className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-1.5 rounded-md"
+            >
               Add Listing
-            </button>
+            </Link>
 
             <div className="w-7 h-7 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
               🙂
