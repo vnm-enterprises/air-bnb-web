@@ -4,9 +4,12 @@ export interface Booking {
   id: number;
   property_id: number;
   user_id: number;
+  traveler_id?: number;
+  traveler_name?: string;
   check_in: string;
   check_out: string;
   guests: number;
+  guest_count?: number;
   total_price: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   created_at: string;
