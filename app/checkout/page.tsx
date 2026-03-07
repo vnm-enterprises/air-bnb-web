@@ -2,26 +2,87 @@
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   ShieldCheck,
   Lock,
   CheckCircle2
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { createBooking } from "@/lib/bookingApi";
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { isAuthenticated } = useAuth();
+  
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Get booking details from URL params
+  const [bookingData, setBookingData] = useState({
+    property_id: 0,
+    check_in: "",
+    check_out: "",
+    guests: 0,
+    propertyTitle: "",
+    propertyLocation: "",
+    propertyImage: "",
+    pricePerNight: 0,
+    nights: 0,
+    cleaningFee: 350,
+    serviceFee: 0,
+    total: 0
+  });
 
-  const handlePayment = () => {
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
+    // Load booking data from localStorage (set from property page)
+    const savedBooking = localStorage.getItem('pendingBooking');
+    if (savedBooking) {
+      const data = JSON.parse(savedBooking);
+      setBookingData(data);
+    } else {
+      // No booking data, redirect back
+      router.push('/properties');
+    }
+  }, [isAuthenticated, router]);
+
+  const handlePayment = async () => {
+    if (!bookingData.property_id || !bookingData.check_in || !bookingData.check_out) {
+      setError("Missing booking information. Please start from property page.");
+      return;
+    }
+
+    setError(null);
     setLoading(true);
-    setTimeout(() => {
-      const success = Math.random() > 0.3;
-      success
-        ? router.push("/checkout/success")
-        : router.push("/checkout/error");
-    }, 1500);
+
+    try {
+      const response = await createBooking({
+        property_id: bookingData.property_id,
+        check_in: bookingData.check_in,
+        check_out: bookingData.check_out,
+        guests: bookingData.guests
+      });
+
+      if (response.success) {
+        localStorage.removeItem('pendingBooking');
+        router.push(`/checkout/success?bookingId=${response.data.id}`);
+      }
+    } catch (err: any) {
+      console.error('Booking error:', err);
+      setError(err.response?.data?.message || 'Failed to create booking');
+      setTimeout(() => {
+        router.push("/checkout/error");
+      }, 2000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,6 +104,13 @@ export default function CheckoutPage() {
             Confirm and Book
           </h1>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
 
             {/* LEFT SIDE */}
@@ -59,13 +127,13 @@ export default function CheckoutPage() {
                     <p className="text-gray-500 uppercase text-xs">
                       Dates
                     </p>
-                    <p>Oct 12 – Oct 17, 2023</p>
+                    <p>{bookingData.check_in ? new Date(bookingData.check_in).toLocaleDateString() : 'Select dates'} – {bookingData.check_out ? new Date(bookingData.check_out).toLocaleDateString() : ''}</p>
                   </div>
                   <div>
                     <p className="text-gray-500 uppercase text-xs">
                       Guests
                     </p>
-                    <p>2 guests</p>
+                    <p>{bookingData.guests || 0} guests</p>
                   </div>
                 </div>
               </div>
@@ -145,64 +213,44 @@ export default function CheckoutPage() {
 
               <div className="flex gap-4 mb-6">
                 <img
-                  src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=300&q=80"
+                  src={bookingData.propertyImage || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=300&q=80"}
                   className="w-24 h-20 rounded-xl object-cover"
                 />
                 <div>
                   <p className="text-xs text-gray-500 uppercase">
-                    Entire Villa
+                    Property
                   </p>
-                  <p className="font-semibold">
-                    Modern Beachside Villa
+                  <h3 className="font-semibold text-sm">
+                    {bookingData.propertyTitle || "Property"}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {bookingData.propertyLocation || "Location"}
                   </p>
-                  <div className="flex items-center gap-1 text-sm mt-1">
-                    ⭐ 4.95
-                    <span className="text-gray-500">
-                      (128 reviews)
-                    </span>
-                  </div>
                 </div>
               </div>
 
-              <hr className="mb-6" />
-
-              <h3 className="font-semibold mb-4">
-                Price Details
-              </h3>
-
-              <div className="space-y-3 text-sm">
+              <div className="border-t pt-4 space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span>£120 × 5 nights</span>
-                  <span>£600.00</span>
+                  <span>
+                    ${bookingData.pricePerNight || 0} × {bookingData.nights || 0} nights
+                  </span>
+                  <span>${(bookingData.pricePerNight * bookingData.nights) || 0}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Service fee</span>
-                  <span>£45.00</span>
-                </div>
+
                 <div className="flex justify-between">
                   <span>Cleaning fee</span>
-                  <span>£25.00</span>
+                  <span>${bookingData.cleaningFee}</span>
                 </div>
-              </div>
 
-              <hr className="my-6" />
-
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Total (GBP)</span>
-                <span>£670.00</span>
-              </div>
-
-              <div className="flex items-center gap-2 mt-6 bg-green-50 text-green-700 text-xs px-4 py-3 rounded-lg">
-                <ShieldCheck size={16} />
-                PRICE GUARANTEE
-              </div>
-
-              <div className="flex justify-between text-xs text-gray-400 mt-6">
-                <div className="flex items-center gap-1">
-                  <Lock size={14} /> SSL SECURED
+                <div className="flex justify-between">
+                  <span>Service fee</span>
+                  <span>${bookingData.serviceFee}</span>
                 </div>
-                <div>VERIFIED HOST</div>
-                <div>NO HIDDEN FEES</div>
+
+                <div className="border-t pt-3 flex justify-between font-semibold">
+                  <span>Total</span>
+                  <span>${bookingData.total || 0}</span>
+                </div>
               </div>
 
             </div>

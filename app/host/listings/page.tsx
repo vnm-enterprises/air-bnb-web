@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
@@ -11,71 +12,249 @@ import {
   Eye,
   BarChart3,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  deleteProperty,
+  getProperties,
+  Property,
+  updateProperty,
+} from "@/lib/propertyApi";
 
 type ListingStatus = "Active" | "Pending" | "Hidden";
 
 type Listing = {
-  id: string;
+  id: number;
   title: string;
+  description: string;
   location: string;
   status: ListingStatus;
   price: number;
   performanceLabel: string;
-  performancePct: number; // 0-100
-  thumb: string; // image url
+  performancePct: number;
+  thumb: string;
+  maxGuests: number;
+  bedrooms: number;
+  bathrooms: number;
 };
 
-const ALL_COUNT = 12;
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=900&q=80";
 
-const LISTINGS: Listing[] = [
-  {
-    id: "1",
-    title: "Azure Waves Villa",
-    location: "Malibu, California",
-    status: "Active",
-    price: 450,
+function toListingStatus(status: string | undefined): ListingStatus {
+  const normalized = (status || "").toLowerCase();
+
+  if (["pending", "draft"].includes(normalized)) {
+    return "Pending";
+  }
+
+  if (["hidden", "inactive", "suspended", "rejected"].includes(normalized)) {
+    return "Hidden";
+  }
+
+  return "Active";
+}
+
+function mapPropertyToListing(property: Property): Listing {
+  const firstImage = Array.isArray(property.images) ? property.images[0] : "";
+
+  return {
+    id: property.id,
+    title: property.title || `Property #${property.id}`,
+    description: property.description || "",
+    location: property.location || "Location unavailable",
+    status: toListingStatus(property.status),
+    price: Number(property.price || 0),
     performanceLabel: "Occupancy",
-    performancePct: 88,
-    thumb:
-      "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: "2",
-    title: "Rustic Peak Cabin",
-    location: "Aspen, Colorado",
-    status: "Pending",
-    price: 285,
-    performanceLabel: "Awaiting verification",
-    performancePct: 40,
-    thumb:
-      "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    id: "3",
-    title: "Downtown Loft",
-    location: "New York, NY",
-    status: "Hidden",
-    price: 320,
-    performanceLabel: "Occupancy",
-    performancePct: 0,
-    thumb:
-      "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80",
-  },
-];
+    performancePct: Math.max(0, Math.min(100, Math.round(Number(property.rating_average || 0) * 20))),
+    thumb: typeof firstImage === "string" && firstImage.trim() ? firstImage : FALLBACK_IMAGE,
+    maxGuests: Number(property.max_guests || 0),
+    bedrooms: Number(property.bedrooms || 0),
+    bathrooms: Number(property.bathrooms || 0),
+  };
+}
 
 export default function HostListingsPage() {
+  const router = useRouter();
+  const { isAuthenticated, isHost, loading, user } = useAuth();
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | ListingStatus>("All");
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!loading && (!isAuthenticated || !isHost())) {
+      router.push("/login");
+    }
+  }, [loading, isAuthenticated, isHost, router]);
+
+  const fetchListings = useCallback(async () => {
+    if (!user?.id) {
+      setListings([]);
+      setDataLoading(false);
+      return;
+    }
+
+    setDataLoading(true);
+    setDataError(null);
+
+    try {
+      const firstPage = await getProperties({ page: 1, per_page: 50 });
+      const allProperties = [...firstPage.data.properties];
+      const pages = firstPage.data.pagination.pages || 1;
+
+      if (pages > 1) {
+        const requests: Promise<any>[] = [];
+
+        for (let page = 2; page <= pages; page += 1) {
+          requests.push(getProperties({ page, per_page: 50 }));
+        }
+
+        const responses = await Promise.all(requests);
+        responses.forEach((res) => {
+          allProperties.push(...res.data.properties);
+        });
+      }
+
+      const hostListings = allProperties
+        .filter((property) => property.host_id === user.id)
+        .map(mapPropertyToListing);
+
+      setListings(hostListings);
+    } catch (error: any) {
+      setDataError(error?.response?.data?.message || "Failed to load listings");
+    } finally {
+      setDataLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (loading || !isAuthenticated || !isHost()) {
+      return;
+    }
+
+    fetchListings();
+  }, [loading, isAuthenticated, isHost, fetchListings]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return LISTINGS.filter((l) => {
-      const matchesQ =
-        !q || l.title.toLowerCase().includes(q) || l.location.toLowerCase().includes(q);
-      const matchesStatus = statusFilter === "All" ? true : l.status === statusFilter;
-      return matchesQ && matchesStatus;
+
+    return listings.filter((listing) => {
+      const matchesQuery =
+        !q ||
+        listing.title.toLowerCase().includes(q) ||
+        listing.location.toLowerCase().includes(q);
+
+      const matchesStatus = statusFilter === "All" ? true : listing.status === statusFilter;
+
+      return matchesQuery && matchesStatus;
     });
-  }, [query, statusFilter]);
+  }, [query, statusFilter, listings]);
+
+  const stats = useMemo(() => {
+    const total = listings.length;
+    const active = listings.filter((listing) => listing.status === "Active").length;
+    const pending = listings.filter((listing) => listing.status === "Pending").length;
+    const averagePrice = total
+      ? Math.round(listings.reduce((sum, listing) => sum + listing.price, 0) / total)
+      : 0;
+
+    return {
+      total,
+      active,
+      pending,
+      averagePrice,
+    };
+  }, [listings]);
+
+  const handleEdit = async (listing: Listing) => {
+    const nextTitleInput = window.prompt("Update listing title", listing.title);
+
+    if (nextTitleInput === null) {
+      return;
+    }
+
+    const nextLocationInput = window.prompt("Update location", listing.location);
+
+    if (nextLocationInput === null) {
+      return;
+    }
+
+    const nextPriceInput = window.prompt("Update price per night (USD)", String(listing.price));
+
+    if (nextPriceInput === null) {
+      return;
+    }
+
+    const nextPrice = Number(nextPriceInput);
+
+    if (Number.isNaN(nextPrice) || nextPrice < 0) {
+      window.alert("Please enter a valid price.");
+      return;
+    }
+
+    const nextTitle = nextTitleInput.trim() || listing.title;
+    const nextLocation = nextLocationInput.trim() || listing.location;
+
+    setActionLoadingId(listing.id);
+    setDataError(null);
+
+    try {
+      const response = await updateProperty(listing.id, {
+        title: nextTitle,
+        description: listing.description,
+        location: nextLocation,
+        price: nextPrice,
+        max_guests: listing.maxGuests,
+        bedrooms: listing.bedrooms,
+        bathrooms: listing.bathrooms,
+      });
+
+      if (response.success) {
+        const updated = mapPropertyToListing(response.data);
+
+        setListings((current) =>
+          current.map((row) => (row.id === listing.id ? updated : row))
+        );
+      }
+    } catch (error: any) {
+      setDataError(error?.response?.data?.message || "Failed to update listing");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDelete = async (listing: Listing) => {
+    const confirmed = window.confirm(
+      `Delete \"${listing.title}\"? This action can be undone from WordPress trash only.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionLoadingId(listing.id);
+    setDataError(null);
+
+    try {
+      await deleteProperty(listing.id);
+      setListings((current) => current.filter((row) => row.id !== listing.id));
+    } catch (error: any) {
+      setDataError(error?.response?.data?.message || "Failed to delete listing");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f6f4f4] text-slate-900">
@@ -102,6 +281,8 @@ export default function HostListingsPage() {
               <input
                 className="w-full bg-transparent outline-none text-[12px] text-slate-600 placeholder:text-slate-400"
                 placeholder="Quick find..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
               />
             </div>
           </div>
@@ -124,14 +305,14 @@ export default function HostListingsPage() {
               <Link href="/host/bookings" className="hover:text-slate-900">
                 Bookings
               </Link>
-              <Link href="/host/earnings" className="hover:text-slate-900">
-                Earnings
-              </Link>
             </nav>
 
-            <button className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-1.5 rounded-md">
+            <Link
+              href="/host/add-property/basics"
+              className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-1.5 rounded-md"
+            >
               Add New Listing
-            </button>
+            </Link>
 
             <div className="w-7 h-7 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
               🙂
@@ -155,18 +336,21 @@ export default function HostListingsPage() {
               </p>
             </div>
 
-            <button className="inline-flex items-center gap-2 bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-2 rounded-md">
+            <Link
+              href="/host/add-property/basics"
+              className="inline-flex items-center gap-2 bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-2 rounded-md"
+            >
               <Plus className="w-4 h-4" />
               Create New Listing
-            </button>
+            </Link>
           </div>
 
           {/* Stat cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
-            <MiniStat label="Total Listings" value="12" icon="🏠" />
-            <MiniStat label="Active" value="8" icon="✅" />
-            <MiniStat label="Pending" value="3" icon="🟨" />
-            <MiniStat label="Revenue (MTD)" value="$14,250" icon="💳" accent />
+            <MiniStat label="Total Listings" value={String(stats.total)} icon="🏠" />
+            <MiniStat label="Active" value={String(stats.active)} icon="✅" />
+            <MiniStat label="Pending" value={String(stats.pending)} icon="🟨" />
+            <MiniStat label="Avg Nightly Rate" value={`$${stats.averagePrice}`} icon="💳" accent />
           </div>
 
           {/* Table Card */}
@@ -177,7 +361,7 @@ export default function HostListingsPage() {
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search by property name or location..."
                   className="w-full bg-slate-100/80 border border-slate-200 rounded-md pl-9 pr-3 py-2 text-[12px] outline-none focus:bg-white focus:border-slate-300"
                 />
@@ -186,8 +370,14 @@ export default function HostListingsPage() {
               <div className="flex items-center gap-2 justify-end">
                 <button
                   onClick={() =>
-                    setStatusFilter((s) =>
-                      s === "All" ? "Active" : s === "Active" ? "Pending" : s === "Pending" ? "Hidden" : "All"
+                    setStatusFilter((current) =>
+                      current === "All"
+                        ? "Active"
+                        : current === "Active"
+                        ? "Pending"
+                        : current === "Pending"
+                        ? "Hidden"
+                        : "All"
                     )
                   }
                   className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 transition text-[11px] font-semibold px-3 py-2 rounded-md text-slate-600"
@@ -195,13 +385,14 @@ export default function HostListingsPage() {
                   {statusFilter === "All" ? "All Status" : statusFilter}
                   <ChevronDown className="w-4 h-4" />
                 </button>
-
-                <button className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 transition text-[11px] font-semibold px-3 py-2 rounded-md text-slate-600">
-                  More Filters
-                  <ChevronDown className="w-4 h-4" />
-                </button>
               </div>
             </div>
+
+            {dataError && (
+              <div className="px-5 py-3 bg-red-50 border-b border-red-100 text-[12px] text-red-700">
+                {dataError}
+              </div>
+            )}
 
             {/* Table */}
             <div className="px-5">
@@ -218,92 +409,104 @@ export default function HostListingsPage() {
                   </thead>
 
                   <tbody className="text-[12px]">
-                    {visible.map((l) => (
-                      <tr key={l.id} className="border-b border-slate-100 last:border-b-0">
-                        {/* Listing details */}
-                        <td className="py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                              <img src={l.thumb} alt={l.title} className="w-full h-full object-cover" />
-                            </div>
-                            <div>
-                              <div className="font-semibold text-slate-900">{l.title}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5">
-                                {l.location}
+                    {dataLoading && (
+                      <tr>
+                        <td colSpan={5} className="py-10 text-center text-[12px] text-slate-500">
+                          Loading listings...
+                        </td>
+                      </tr>
+                    )}
+
+                    {!dataLoading &&
+                      visible.map((listing) => (
+                        <tr key={listing.id} className="border-b border-slate-100 last:border-b-0">
+                          {/* Listing details */}
+                          <td className="py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                                <img src={listing.thumb} alt={listing.title} className="w-full h-full object-cover" />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900">{listing.title}</div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {listing.location}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Status */}
-                        <td className="py-4">
-                          <StatusPill status={l.status} />
-                        </td>
+                          {/* Status */}
+                          <td className="py-4">
+                            <StatusPill status={listing.status} />
+                          </td>
 
-                        {/* Price */}
-                        <td className="py-4">
-                          <div className="font-bold text-slate-900">${l.price}</div>
-                          <div className="text-[10px] text-slate-400">USD / NIGHT</div>
-                        </td>
+                          {/* Price */}
+                          <td className="py-4">
+                            <div className="font-bold text-slate-900">${listing.price}</div>
+                            <div className="text-[10px] text-slate-400">USD / NIGHT</div>
+                          </td>
 
-                        {/* Performance */}
-                        <td className="py-4">
-                          <div className="text-[10px] text-slate-400 font-semibold tracking-wide">
-                            {l.performanceLabel.toUpperCase()}
-                          </div>
+                          {/* Performance */}
+                          <td className="py-4">
+                            <div className="text-[10px] text-slate-400 font-semibold tracking-wide">
+                              {listing.performanceLabel.toUpperCase()}
+                            </div>
 
-                          {l.performanceLabel.toLowerCase().includes("occupancy") ? (
                             <div className="mt-2 flex items-center gap-3">
                               <div className="flex-1 h-2 rounded-full bg-slate-100 border border-slate-200 overflow-hidden max-w-[160px]">
                                 <div
                                   className="h-full bg-[#2C5F5D]"
-                                  style={{ width: `${l.performancePct}%` }}
+                                  style={{ width: `${listing.performancePct}%` }}
                                 />
                               </div>
                               <div className="text-[11px] font-semibold text-slate-600">
-                                {l.performancePct}%
+                                {listing.performancePct}%
                               </div>
                             </div>
-                          ) : (
-                            <div className="mt-2 text-[11px] text-slate-500">
-                              {l.performanceLabel}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-4">
+                            <div className="flex items-center justify-end gap-3 text-slate-600">
+                              <button
+                                className="p-1.5 rounded-md hover:bg-slate-100 transition disabled:opacity-50"
+                                aria-label="Edit listing"
+                                onClick={() => handleEdit(listing)}
+                                disabled={actionLoadingId === listing.id}
+                              >
+                                <Pencil className="w-4 h-4 text-slate-500" />
+                              </button>
+
+                              <Link
+                                href={`/properties/${listing.id}`}
+                                className="p-1.5 rounded-md hover:bg-slate-100 transition"
+                                aria-label="View listing"
+                              >
+                                <Eye className="w-4 h-4 text-slate-500" />
+                              </Link>
+
+                              <button
+                                className="p-1.5 rounded-md hover:bg-slate-100 transition"
+                                aria-label="Analytics"
+                                onClick={() => router.push("/host")}
+                              >
+                                <BarChart3 className="w-4 h-4 text-slate-500" />
+                              </button>
+
+                              <button
+                                className="p-1.5 rounded-md hover:bg-slate-100 transition disabled:opacity-50"
+                                aria-label="Delete listing"
+                                onClick={() => handleDelete(listing)}
+                                disabled={actionLoadingId === listing.id}
+                              >
+                                <Trash2 className="w-4 h-4 text-slate-500" />
+                              </button>
                             </div>
-                          )}
-                        </td>
+                          </td>
+                        </tr>
+                      ))}
 
-                        {/* Actions */}
-                        <td className="py-4">
-                          <div className="flex items-center justify-end gap-3 text-slate-600">
-                            <button
-                              className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                              aria-label="Edit listing"
-                            >
-                              <Pencil className="w-4 h-4 text-slate-500" />
-                            </button>
-                            <button
-                              className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                              aria-label="View listing"
-                            >
-                              <Eye className="w-4 h-4 text-slate-500" />
-                            </button>
-                            <button
-                              className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                              aria-label="Analytics"
-                            >
-                              <BarChart3 className="w-4 h-4 text-slate-500" />
-                            </button>
-                            <button
-                              className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                              aria-label="Delete listing"
-                            >
-                              <Trash2 className="w-4 h-4 text-slate-500" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {visible.length === 0 && (
+                    {!dataLoading && visible.length === 0 && (
                       <tr>
                         <td colSpan={5} className="py-10 text-center text-[12px] text-slate-500">
                           No listings found.
@@ -314,16 +517,9 @@ export default function HostListingsPage() {
                 </table>
               </div>
 
-              {/* Pagination */}
               <div className="flex items-center justify-between py-4 text-[11px] text-slate-500">
-                <div>Showing 1 to {Math.min(visible.length, 3)} of {ALL_COUNT} results</div>
-                <div className="flex items-center gap-2">
-                  <button className="bg-white border border-slate-200 hover:bg-slate-50 transition px-3 py-1.5 rounded-md">
-                    Previous
-                  </button>
-                  <button className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white px-3 py-1.5 rounded-md">
-                    Next
-                  </button>
+                <div>
+                  Showing {visible.length} of {listings.length} results
                 </div>
               </div>
             </div>
@@ -387,7 +583,6 @@ export default function HostListingsPage() {
   );
 }
 
-/* Small components */
 function MiniStat({
   label,
   value,

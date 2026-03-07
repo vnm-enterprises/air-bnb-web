@@ -7,20 +7,47 @@ import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { getUserBookings } from "@/lib/bookingApi";
+import type { Booking } from "@/lib/bookingApi";
 
 export default function MyBookingsPage() {
   const router = useRouter();
-  const { isAuthenticated, isTraveler, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState("upcoming");
+  const { isAuthenticated, isTraveler, loading: authLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState("confirmed");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Redirect if not authenticated or not a traveler
   useEffect(() => {
-    if (!loading && (!isAuthenticated || !isTraveler())) {
+    if (!authLoading && (!isAuthenticated || !isTraveler())) {
       router.push('/login');
     }
-  }, [isAuthenticated, isTraveler, loading, router]);
+  }, [isAuthenticated, isTraveler, authLoading, router]);
 
-  if (loading) {
+  // Fetch user bookings
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        setLoading(true);
+        const response = await getUserBookings({ status: activeTab });
+        if (response.success) {
+          setBookings(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching bookings:', err);
+        setError('Failed to load bookings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isAuthenticated && isTraveler()) {
+      fetchBookings();
+    }
+  }, [activeTab, isAuthenticated, isTraveler]);
+
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
@@ -28,50 +55,7 @@ export default function MyBookingsPage() {
     );
   }
 
-  /* ---------------- USER BOOKINGS DATA ---------------- */
-
-  const bookings = [
-    {
-      id: "BK-9821",
-      title: "Modern Beachside Villa",
-      location: "Malibu, California",
-      image:
-        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80",
-      checkIn: "Oct 12, 2023",
-      checkOut: "Oct 17, 2023",
-      guests: 2,
-      total: 750,
-      status: "upcoming",
-    },
-    {
-      id: "BK-8742",
-      title: "Luxury Forest Retreat",
-      location: "Aspen, Colorado",
-      image:
-        "https://images.unsplash.com/photo-1505691938895-1758d7feb511?q=80&w=800&auto=format&fit=crop",
-      checkIn: "Sep 02, 2023",
-      checkOut: "Sep 06, 2023",
-      guests: 4,
-      total: 1120,
-      status: "completed",
-    },
-    {
-      id: "BK-7651",
-      title: "City Skyline Apartment",
-      location: "New York, USA",
-      image:
-        "https://images.unsplash.com/photo-1494526585095-c41746248156?q=80&w=800&auto=format&fit=crop",
-      checkIn: "Aug 10, 2023",
-      checkOut: "Aug 12, 2023",
-      guests: 2,
-      total: 420,
-      status: "cancelled",
-    },
-  ];
-
-  const filtered = bookings.filter(
-    (b) => b.status === activeTab
-  );
+  const filtered = bookings;
 
   /* ---------------- UI ---------------- */
 
@@ -94,7 +78,7 @@ export default function MyBookingsPage() {
 
           {/* TABS */}
           <div className="flex gap-6 border-b mb-8">
-            {["upcoming", "completed", "cancelled"].map((tab) => (
+            {["confirmed", "pending", "cancelled", "completed"].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -110,7 +94,15 @@ export default function MyBookingsPage() {
           </div>
 
           {/* BOOKINGS LIST */}
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center items-center h-96">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
+            </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-700">
+              {error}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="bg-white border rounded-2xl p-12 text-center shadow-sm">
               <h3 className="text-lg font-semibold text-slate-800">
                 No {activeTab} bookings
@@ -128,27 +120,30 @@ export default function MyBookingsPage() {
                 >
                   {/* IMAGE */}
                   <img
-                    src={booking.image}
-                    alt={booking.title}
+                    src={
+                      booking.property?.image ||
+                      'https://images.unsplash.com/photo-1517457373614-b7152f800908?auto=format&fit=crop&w=600&q=80'
+                    }
+                    alt={booking.property?.title || 'Property'}
                     className="w-full md:w-56 h-40 object-cover rounded-xl"
                   />
 
                   {/* CONTENT */}
                   <div className="flex-1 flex flex-col justify-between">
-
                     <div>
                       <h2 className="text-lg font-semibold text-slate-900">
-                        {booking.title}
+                        {booking.property?.title || `Booking #${booking.id}`}
                       </h2>
 
                       <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
                         <MapPin size={14} />
-                        {booking.location}
+                        {booking.property?.location || 'Location not available'}
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-slate-500 mt-3">
                         <Calendar size={14} />
-                        {booking.checkIn} – {booking.checkOut}
+                        {new Date(booking.check_in).toLocaleDateString()} –{' '}
+                        {new Date(booking.check_out).toLocaleDateString()}
                       </div>
 
                       <p className="text-sm text-slate-500 mt-1">
@@ -158,7 +153,7 @@ export default function MyBookingsPage() {
 
                     <div className="flex items-center justify-between mt-6">
                       <div className="text-lg font-semibold text-slate-900">
-                        ${booking.total}
+                        ${booking.total_price}
                       </div>
 
                       <div className="flex items-center gap-4">

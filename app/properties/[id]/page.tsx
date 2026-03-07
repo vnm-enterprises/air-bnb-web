@@ -300,6 +300,31 @@ export default function PropertyPage() {
                   if (!isAuthenticated) {
                     router.push('/login');
                   } else {
+                    if (!range?.from || !range?.to) {
+                      alert('Please select check-in and check-out dates');
+                      return;
+                    }
+                    
+                    // Prepare booking data
+                    const bookingData = {
+                      property_id: property.id,
+                      check_in: range.from.toISOString().split('T')[0],
+                      check_out: range.to.toISOString().split('T')[0],
+                      guests: guests,
+                      propertyTitle: property.title,
+                      propertyLocation: property.location,
+                      propertyImage: property.images[0] + "?auto=format&fit=crop&w=300&q=80",
+                      pricePerNight: property.price,
+                      nights: nights,
+                      cleaningFee: cleaningFee,
+                      serviceFee: serviceFee,
+                      total: total
+                    };
+                    
+                    // Save to localStorage
+                    localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
+                    
+                    // Navigate to checkout
                     router.push('/checkout');
                   }
                 }}
