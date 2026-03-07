@@ -8,7 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { DayPicker, DateRange } from "react-day-picker";
 import { differenceInDays } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
-import { getPropertyById, Property } from "@/lib/propertyApi";
+import { getPropertyById, getUnavailableDates, Property } from "@/lib/propertyApi";
 import "react-day-picker/dist/style.css";
 
 const FALLBACK_IMAGE =
@@ -48,6 +48,7 @@ export default function PropertyPage() {
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const [range, setRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState(1);
+  const [disabledDates, setDisabledDates] = useState<Date[]>([]);
 
   const propertyId = useMemo(() => {
     const rawId = params?.id;
@@ -92,6 +93,56 @@ export default function PropertyPage() {
     };
 
     fetchProperty();
+
+    return () => {
+      active = false;
+    };
+  }, [propertyId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return;
+    }
+
+    let active = true;
+
+    const fetchUnavailableDates = async () => {
+      // Clear previous dates when switching properties
+      setDisabledDates([]);
+      
+      try {
+        const response = await getUnavailableDates(propertyId);
+        
+        if (!active) {
+          return;
+        }
+
+        const dates: Date[] = [];
+        
+        response.data.unavailable_dates.forEach((range) => {
+          const start = new Date(range.from);
+          const end = new Date(range.to);
+          
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return;
+          }
+          
+          // Add all dates in the range
+          const current = new Date(start);
+          while (current <= end) {
+            dates.push(new Date(current));
+            current.setDate(current.getDate() + 1);
+          }
+        });
+        
+        setDisabledDates(dates);
+      } catch (err) {
+        console.error('Failed to fetch unavailable dates:', err);
+        setDisabledDates([]);
+      }
+    };
+
+    fetchUnavailableDates();
 
     return () => {
       active = false;
@@ -179,6 +230,7 @@ export default function PropertyPage() {
   const reviewCount = Number(property.rating_count || 0);
   const beds = Math.max(1, Number(property.bedrooms || 1));
   const listedOn = formatDateLabel(property.created_at);
+  const hostName = (property.host_name || "Host").trim() || "Host";
 
   return (
     <>
@@ -242,7 +294,7 @@ export default function PropertyPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 mt-12">
           <div className="lg:col-span-2 space-y-10">
             <div>
-              <h2 className="text-lg font-semibold">Entire property hosted by Host #{property.host_id}</h2>
+              <h2 className="text-lg font-semibold">Entire property hosted by {hostName}</h2>
               <p className="text-sm text-gray-600 mt-1">
                 {property.max_guests} guests · {property.bedrooms} bedrooms · {beds} beds · {property.bathrooms} baths
               </p>
@@ -291,7 +343,7 @@ export default function PropertyPage() {
 
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg">Hosted by Host #{property.host_id}</h3>
+                    <h3 className="font-semibold text-lg">Hosted by {hostName}</h3>
                     <span className="text-green-600 text-sm">●</span>
                   </div>
 
@@ -333,7 +385,13 @@ export default function PropertyPage() {
               </div>
 
               <div className="mt-6 border rounded-xl p-4">
-                <DayPicker mode="range" selected={range} onSelect={setRange} />
+                <DayPicker 
+                  mode="range" 
+                  selected={range} 
+                  onSelect={setRange}
+                  disabled={disabledDates}
+                  fromDate={new Date()}
+                />
               </div>
 
               <div className="mt-4">

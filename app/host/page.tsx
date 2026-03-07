@@ -166,6 +166,8 @@ export default function HostDashboardPage() {
             id: Number(booking.id),
             property_id: Number(booking.property_id),
             traveler_id: Number(booking.traveler_id ?? booking.user_id ?? 0),
+            traveler_name:
+              typeof booking.traveler_name === "string" ? booking.traveler_name.trim() : "",
             check_in: String(booking.check_in ?? ""),
             check_out: String(booking.check_out ?? ""),
             guest_count: Number(booking.guest_count ?? booking.guests ?? 0),
@@ -195,10 +197,11 @@ export default function HostDashboardPage() {
 
         const rowsFromApi: RecentBooking[] = normalizedBookings.map((booking) => {
           const property = propertyMap.get(booking.property_id);
+          const guestName = booking.traveler_name || "Guest";
 
           return {
             id: String(booking.id),
-            guest: booking.traveler_id ? `Guest #${booking.traveler_id}` : `Guest #${booking.id}`,
+            guest: guestName,
             guestsMeta: `${booking.guest_count || 0} guests`,
             property: property?.title || `Property #${booking.property_id}`,
             location: property?.location || "Location unavailable",

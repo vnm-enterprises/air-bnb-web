@@ -15,6 +15,7 @@ export interface Property {
   rating_average: number;
   rating_count: number;
   host_id: number;
+  host_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +37,20 @@ export interface PropertyResponse {
   success: boolean;
   message: string;
   data: Property;
+}
+
+export interface UnavailableDateRange {
+  from: string;
+  to: string;
+  reason: 'blocked' | 'booked';
+}
+
+export interface UnavailableDatesResponse {
+  success: boolean;
+  message: string;
+  data: {
+    unavailable_dates: UnavailableDateRange[];
+  };
 }
 
 /**
@@ -91,6 +106,21 @@ export async function checkAvailability(
     return response.data;
   } catch (error) {
     console.error(`Error checking availability for property ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get unavailable dates for a property (blocked + booked dates)
+ */
+export async function getUnavailableDates(id: number): Promise<UnavailableDatesResponse> {
+  try {
+    const response = await api.get<UnavailableDatesResponse>(
+      `/api/v1/properties/${id}/unavailable-dates`
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching unavailable dates for property ${id}:`, error);
     throw error;
   }
 }
