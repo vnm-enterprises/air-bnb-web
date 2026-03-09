@@ -7,7 +7,7 @@ import { Calendar, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { getBookingById, getUserBookings } from "@/lib/bookingApi";
+import { getBookingById, getUserBookings, cancelBooking } from "@/lib/bookingApi";
 import { getPropertyById } from "@/lib/propertyApi";
 import type { Booking } from "@/lib/bookingApi";
 
@@ -36,6 +36,7 @@ export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<number | null>(null);
 
   // Redirect if not authenticated or not a traveler
   useEffect(() => {
@@ -168,6 +169,40 @@ export default function MyBookingsPage() {
     };
   }, [activeTab, isAuthenticated, isTraveler]);
 
+  const handleCancelBooking = async (bookingId: number) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this booking? This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    setCancelingId(bookingId);
+
+    try {
+      await cancelBooking(bookingId);
+      
+      // Update local state - remove from current list and add to cancelled
+      setBookings(prevBookings => 
+        prevBookings.map(b => 
+          b.id === bookingId ? { ...b, status: 'cancelled' as const } : b
+        )
+      );
+
+      // Show success message
+      alert('Booking cancelled successfully');
+      
+      // Switch to cancelled tab if not already there
+      if (activeTab !== 'cancelled') {
+        setActiveTab('cancelled');
+      }
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message;
+      alert(apiMessage || 'Failed to cancel booking');
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -279,6 +314,19 @@ export default function MyBookingsPage() {
 
                       <div className="flex items-center gap-4">
                         <StatusBadge status={booking.status} />
+
+                        {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleCancelBooking(booking.id);
+                            }}
+                            disabled={cancelingId === booking.id}
+                            className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {cancelingId === booking.id ? 'Cancelling...' : 'Cancel'}
+                          </button>
+                        )}
 
                         <Link
                           href={`/booking/${booking.id}`}

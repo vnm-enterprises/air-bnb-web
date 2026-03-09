@@ -163,16 +163,11 @@ export async function confirmBooking(id: number): Promise<BookingResponse> {
 }
 
 /**
- * Cancel a booking
+ * Cancel a booking (traveler only)
  */
-export async function cancelBooking(
-  id: number,
-  reason?: string
-): Promise<BookingResponse> {
+export async function cancelBooking(id: number): Promise<BookingResponse> {
   try {
-    const response = await api.post<BookingResponse>(`/api/v1/bookings/${id}/cancel`, {
-      reason: reason || '',
-    });
+    const response = await api.post<BookingResponse>(`/api/v1/bookings/${id}/cancelled`);
     return response.data;
   } catch (error) {
     console.error(`Error cancelling booking ${id}:`, error);

@@ -9,6 +9,7 @@ import { DayPicker, DateRange } from "react-day-picker";
 import { differenceInDays } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { getPropertyById, getUnavailableDates, Property } from "@/lib/propertyApi";
+import { useWishlist } from "@/hooks/useWishlist";
 import "react-day-picker/dist/style.css";
 
 const FALLBACK_IMAGE =
@@ -39,12 +40,12 @@ export default function PropertyPage() {
   const params = useParams();
   const router = useRouter();
   const { isHost, isAuthenticated } = useAuth();
+  const { isInWishlist, isProcessing, toggleWishlist, canUseWishlist } = useWishlist();
 
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [liked, setLiked] = useState(false);
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const [range, setRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState(1);
@@ -262,11 +263,21 @@ export default function PropertyPage() {
             </button>
 
             <button
-              onClick={() => setLiked((current) => !current)}
-              className="flex items-center gap-2 hover:underline"
+              onClick={() => {
+                if (canUseWishlist) {
+                  void toggleWishlist(propertyId);
+                } else {
+                  router.push('/login');
+                }
+              }}
+              disabled={isProcessing(propertyId)}
+              className="flex items-center gap-2 hover:underline disabled:opacity-60"
             >
-              <Heart size={16} className={liked ? "fill-black" : ""} />
-              Save
+              <Heart 
+                size={16} 
+                className={isInWishlist(propertyId) ? "fill-red-500 text-red-500" : ""} 
+              />
+              {isInWishlist(propertyId) ? "Saved" : "Save"}
             </button>
           </div>
         </div>
