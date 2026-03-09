@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Star } from "lucide-react";
+import { Star, Heart } from "lucide-react";
 import { getProperties } from "@/lib/propertyApi";
 import type { Property } from "@/lib/propertyApi";
+import { useWishlist } from "@/hooks/useWishlist";
 
 export default function ResultsList() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function ResultsList() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isInWishlist, isProcessing, toggleWishlist, canUseWishlist } = useWishlist();
 
   const perPage = 6;
 
@@ -71,12 +73,33 @@ export default function ResultsList() {
               className="group flex rounded-2xl overflow-hidden border border-gray-200 hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white"
             >
               {/* IMAGE */}
-              <div className="w-72 h-56 flex-shrink-0 overflow-hidden">
+              <div className="w-72 h-56 flex-shrink-0 overflow-hidden relative">
                 <img
                   src={getImageUrl(property)}
                   alt={property.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (canUseWishlist) {
+                      void toggleWishlist(property.id);
+                    } else {
+                      router.push('/login');
+                    }
+                  }}
+                  disabled={isProcessing(property.id)}
+                  className="absolute top-3 right-3 p-2 bg-white/90 rounded-full hover:scale-110 transition-transform disabled:opacity-60 shadow-md"
+                  aria-label={isInWishlist(property.id) ? "Remove from wishlist" : "Add to wishlist"}
+                >
+                  <Heart
+                    className={`h-4 w-4 ${
+                      isInWishlist(property.id)
+                        ? "fill-red-500 text-red-500"
+                        : "text-slate-700"
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* CONTENT */}

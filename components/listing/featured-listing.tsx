@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Star, Heart, ChevronRight } from "lucide-react";
 import { getProperties } from "@/lib/propertyApi";
 import type { Property } from "@/lib/propertyApi";
+import { useWishlist } from "@/hooks/useWishlist";
 
 export default function CuratedCollections() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function CuratedCollections() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isInWishlist, isProcessing, toggleWishlist, canUseWishlist } = useWishlist();
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -82,8 +84,26 @@ export default function CuratedCollections() {
                   }}
                 ></div>
 
-                <button className="absolute top-4 left-4 p-2 bg-white/90  rounded-full hover:scale-110 transition-transform">
-                  <Heart className="h-4 w-4 text-slate-700 " />
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (canUseWishlist) {
+                      void toggleWishlist(property.id);
+                    } else {
+                      router.push('/login');
+                    }
+                  }}
+                  disabled={isProcessing(property.id)}
+                  className="absolute top-4 left-4 p-2 bg-white/90 rounded-full hover:scale-110 transition-transform disabled:opacity-60 z-10"
+                  aria-label={isInWishlist(property.id) ? "Remove from wishlist" : "Add to wishlist"}
+                >
+                  <Heart 
+                    className={`h-4 w-4 ${
+                      isInWishlist(property.id) 
+                        ? "fill-red-500 text-red-500" 
+                        : "text-slate-700"
+                    }`} 
+                  />
                 </button>
 
                 {hoveredIndex === index && (
