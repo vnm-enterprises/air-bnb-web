@@ -5,7 +5,7 @@ import Footer from "@/components/layout/Footer";
 import { Star, Share2, Heart } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { DayPicker, DateRange } from "react-day-picker";
+import { DayPicker, DateRange, Matcher } from "react-day-picker";
 import { differenceInDays } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { getPropertyById, getUnavailableDates, Property } from "@/lib/propertyApi";
@@ -36,6 +36,20 @@ function formatDateLabel(dateString: string): string {
   });
 }
 
+function parseDateOnly(dateString: string): Date | null {
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  // Build dates in local time to avoid timezone shifts from YYYY-MM-DD parsing.
+  const parsed = new Date(year, month - 1, day);
+  parsed.setHours(0, 0, 0, 0);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export default function PropertyPage() {
   const params = useParams();
   const router = useRouter();
@@ -49,7 +63,13 @@ export default function PropertyPage() {
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const [range, setRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState(1);
-  const [disabledDates, setDisabledDates] = useState<Date[]>([]);
+  const [disabledDateMatchers, setDisabledDateMatchers] = useState<Matcher[]>([]);
+
+  const earliestBookableDate = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }, []);
 
   const propertyId = useMemo(() => {
     const rawId = params?.id;
@@ -109,7 +129,7 @@ export default function PropertyPage() {
 
     const fetchUnavailableDates = async () => {
       // Clear previous dates when switching properties
-      setDisabledDates([]);
+      setDisabledDateMatchers([]);
       
       try {
         const response = await getUnavailableDates(propertyId);
@@ -118,28 +138,34 @@ export default function PropertyPage() {
           return;
         }
 
-        const dates: Date[] = [];
-        
-        response.data.unavailable_dates.forEach((range) => {
-          const start = new Date(range.from);
-          const end = new Date(range.to);
-          
-          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        const unavailableRanges: Matcher[] = [];
+
+        response.data.unavailable_dates.forEach((unavailableRange) => {
+          const start = parseDateOnly(unavailableRange.from);
+          const end = parseDateOnly(unavailableRange.to);
+
+          if (!start || !end || start > end) {
             return;
           }
-          
-          // Add all dates in the range
-          const current = new Date(start);
-          while (current <= end) {
-            dates.push(new Date(current));
-            current.setDate(current.getDate() + 1);
+
+          const normalizedEnd = new Date(end);
+
+          // Bookings use check-out as an exclusive boundary.
+          if (unavailableRange.reason === "booked") {
+            normalizedEnd.setDate(normalizedEnd.getDate() - 1);
           }
+
+          if (normalizedEnd < start) {
+            return;
+          }
+
+          unavailableRanges.push({ from: start, to: normalizedEnd });
         });
-        
-        setDisabledDates(dates);
+
+        setDisabledDateMatchers(unavailableRanges);
       } catch (err) {
-        console.error('Failed to fetch unavailable dates:', err);
-        setDisabledDates([]);
+        console.error("Failed to fetch unavailable dates:", err);
+        setDisabledDateMatchers([]);
       }
     };
 
@@ -400,9 +426,12 @@ export default function PropertyPage() {
                   mode="range" 
                   selected={range} 
                   onSelect={setRange}
-                  disabled={disabledDates}
-                  fromDate={new Date()}
+                  disabled={disabledDateMatchers}
+                  excludeDisabled
+                  fromDate={earliestBookableDate}
+                  modifiersClassNames={{ disabled: "booking-day-unavailable" }}
                 />
+                <p className="mt-2 text-xs text-gray-500">Unavailable dates are greyed out.</p>
               </div>
 
               <div className="mt-4">
