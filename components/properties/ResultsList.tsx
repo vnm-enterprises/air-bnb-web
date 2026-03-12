@@ -1,43 +1,31 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { Star } from "lucide-react";
-import { getProperties } from "@/lib/propertyApi";
+import { Star, Heart } from "lucide-react";
 import type { Property } from "@/lib/propertyApi";
+import { useWishlist } from "@/hooks/useWishlist";
 
-export default function ResultsList() {
+interface ResultsListProps {
+  properties: Property[];
+  loading: boolean;
+  error: string | null;
+  currentPage: number;
+  totalPages: number;
+  totalResults: number;
+  onPageChange: (page: number) => void;
+}
+
+export default function ResultsList({
+  properties,
+  loading,
+  error,
+  currentPage,
+  totalPages,
+  totalResults,
+  onPageChange,
+}: ResultsListProps) {
   const router = useRouter();
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const perPage = 6;
-
-  useEffect(() => {
-    const fetchProperties = async () => {
-      try {
-        setLoading(true);
-        const response = await getProperties({
-          page,
-          per_page: perPage,
-        });
-        if (response.success) {
-          setProperties(response.data.properties);
-          setTotalPages(response.data.pagination.pages);
-        }
-      } catch (err) {
-        console.error('Error fetching properties:', err);
-        setError('Failed to load properties');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProperties();
-  }, [page]);
+  const { isInWishlist, isProcessing, toggleWishlist, canUseWishlist } = useWishlist();
 
   const getImageUrl = (property: Property): string => {
     if (property.images && property.images.length > 0) {
@@ -46,11 +34,17 @@ export default function ResultsList() {
     return 'https://images.unsplash.com/photo-1562183241-b8d776b07f16?q=80&w=1200&auto=format&fit=crop';
   };
 
+  const resultLabel = loading
+    ? 'Loading stays...'
+    : totalResults === 1
+      ? '1 stay found'
+      : `${totalResults} stays found`;
+
   return (
     <div>
       {/* Title */}
       <h2 className="text-lg font-semibold mb-8">
-        {loading ? 'Loading...' : `${properties.length} stays found`}
+        {resultLabel}
       </h2>
 
       {/* Cards */}
@@ -71,12 +65,33 @@ export default function ResultsList() {
               className="group flex rounded-2xl overflow-hidden border border-gray-200 hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white"
             >
               {/* IMAGE */}
-              <div className="w-72 h-56 flex-shrink-0 overflow-hidden">
+              <div className="w-72 h-56 flex-shrink-0 overflow-hidden relative">
                 <img
                   src={getImageUrl(property)}
                   alt={property.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (canUseWishlist) {
+                      void toggleWishlist(property.id);
+                    } else {
+                      router.push('/login');
+                    }
+                  }}
+                  disabled={isProcessing(property.id)}
+                  className="absolute top-3 right-3 p-2 bg-white/90 rounded-full hover:scale-110 transition-transform disabled:opacity-60 shadow-md"
+                  aria-label={isInWishlist(property.id) ? "Remove from wishlist" : "Add to wishlist"}
+                >
+                  <Heart
+                    className={`h-4 w-4 ${
+                      isInWishlist(property.id)
+                        ? "fill-red-500 text-red-500"
+                        : "text-slate-700"
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* CONTENT */}
@@ -143,14 +158,14 @@ export default function ResultsList() {
       </div>
 
       {/* Pagination */}
-      {!loading && properties.length > 0 && (
+      {!loading && properties.length > 0 && totalPages > 1 && (
         <div className="flex gap-3 mt-10">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
             <button
               key={p}
-              onClick={() => setPage(p)}
+              onClick={() => onPageChange(p)}
               className={`px-4 py-2 border rounded-full transition ${
-                page === p
+                currentPage === p
                   ? "bg-black text-white"
                   : "hover:bg-gray-100"
               }`}

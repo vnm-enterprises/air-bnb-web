@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Calendar, MapPin, Users, Receipt, CreditCard } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { getBookingById } from "@/lib/bookingApi";
+import { getBookingById, cancelBooking } from "@/lib/bookingApi";
 import { getPropertyById, Property } from "@/lib/propertyApi";
 
 type BookingDetails = {
@@ -88,6 +88,8 @@ export default function BookingDetailsPage() {
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const bookingId = useMemo(() => {
     const raw = params?.id;
@@ -173,6 +175,40 @@ export default function BookingDetailsPage() {
       active = false;
     };
   }, [authLoading, isAuthenticated, bookingId]);
+
+  const handleCancelBooking = async () => {
+    if (!booking) return;
+
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this booking? This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    setCanceling(true);
+    setCancelError(null);
+
+    try {
+      await cancelBooking(booking.id);
+      
+      // Update local state
+      setBooking({
+        ...booking,
+        status: 'cancelled'
+      });
+
+      // Show success message
+      alert('Booking cancelled successfully');
+      
+      // Optionally redirect to dashboard
+      // router.push('/dashboard');
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message;
+      setCancelError(apiMessage || 'Failed to cancel booking');
+    } finally {
+      setCanceling(false);
+    }
+  };
 
   if (authLoading || (!isAuthenticated && !error)) {
     return (
@@ -322,7 +358,23 @@ export default function BookingDetailsPage() {
                   >
                     Payment Status
                   </Link>
+
+                  {(status === 'pending' || status === 'confirmed') && (
+                    <button
+                      onClick={handleCancelBooking}
+                      disabled={canceling}
+                      className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {canceling ? 'Cancelling...' : 'Cancel Booking'}
+                    </button>
+                  )}
                 </div>
+
+                {cancelError && (
+                  <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                    {cancelError}
+                  </div>
+                )}
               </div>
             </div>
           </section>

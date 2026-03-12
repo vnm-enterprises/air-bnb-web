@@ -53,10 +53,23 @@ export interface UnavailableDatesResponse {
   };
 }
 
-/**
- * Fetch all properties with optional filters and pagination
- */
-export async function getProperties(params?: {
+export interface AvailabilityResponse {
+  success: boolean;
+  message: string;
+  data: {
+    available: boolean;
+  };
+}
+
+export interface DeletePropertyResponse {
+  success: boolean;
+  message: string;
+  data: {
+    deleted: boolean;
+  };
+}
+
+export interface GetPropertiesParams {
   page?: number;
   per_page?: number;
   search?: string;
@@ -66,7 +79,12 @@ export async function getProperties(params?: {
   guests?: number;
   location?: string;
   sort?: 'created_desc' | 'price_asc' | 'price_desc';
-}): Promise<PropertiesResponse> {
+}
+
+/**
+ * Fetch all properties with optional filters and pagination
+ */
+export async function getProperties(params?: GetPropertiesParams): Promise<PropertiesResponse> {
   try {
     const response = await api.get<PropertiesResponse>('/api/v1/properties', {
       params: params || {},
@@ -98,9 +116,9 @@ export async function checkAvailability(
   id: number,
   checkIn: string,
   checkOut: string
-): Promise<any> {
+): Promise<AvailabilityResponse> {
   try {
-    const response = await api.get(`/api/v1/properties/${id}/availability`, {
+    const response = await api.get<AvailabilityResponse>(`/api/v1/properties/${id}/availability`, {
       params: { check_in: checkIn, check_out: checkOut },
     });
     return response.data;
@@ -157,9 +175,9 @@ export async function updateProperty(
 /**
  * Delete a property (requires host authentication)
  */
-export async function deleteProperty(id: number): Promise<any> {
+export async function deleteProperty(id: number): Promise<DeletePropertyResponse> {
   try {
-    const response = await api.delete(`/api/v1/properties/${id}`);
+    const response = await api.delete<DeletePropertyResponse>(`/api/v1/properties/${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting property ${id}:`, error);
