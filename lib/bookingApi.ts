@@ -35,10 +35,19 @@ export interface CreateBookingResponse {
   };
 }
 
+export interface BookingsPagination {
+  total: number;
+  pages: number;
+  current: number;
+}
+
 export interface BookingsResponse {
   success: boolean;
   message: string;
-  data: Booking[];
+  data: {
+    bookings: number[];
+    pagination: BookingsPagination;
+  };
 }
 
 /**

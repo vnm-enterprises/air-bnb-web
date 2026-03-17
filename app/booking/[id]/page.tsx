@@ -190,7 +190,11 @@ export default function BookingDetailsPage() {
 
     try {
       await cancelBooking(booking.id);
-      
+
+      // Clear Next.js router cache so the property page re-fetches fresh
+      // unavailable dates the next time the user navigates to it.
+      router.refresh();
+
       // Update local state
       setBooking({
         ...booking,
@@ -199,7 +203,7 @@ export default function BookingDetailsPage() {
 
       // Show success message
       alert('Booking cancelled successfully');
-      
+
       // Optionally redirect to dashboard
       // router.push('/dashboard');
     } catch (err: any) {
