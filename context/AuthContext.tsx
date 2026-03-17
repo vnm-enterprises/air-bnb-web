@@ -55,15 +55,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (res.data?.id) {
           setUser(res.data);
+          localStorage.setItem('user_id', String(res.data.id));
         } else {
           // Invalid token response
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user_id');
         }
       } catch (error) {
         // Token invalid or expired
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_id');
       } finally {
         setLoading(false);
       }
@@ -94,6 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fetch user data
         const userRes = await api.get('/api/v1/me');
         setUser(userRes.data);
+        if (userRes.data?.id) {
+          localStorage.setItem('user_id', String(userRes.data.id));
+        }
 
         // Set token refresh timeout (900 seconds = 15 minutes)
         if (expires_in) {
@@ -139,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_id');
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
     }
@@ -147,15 +154,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshToken = useCallback(async () => {
     try {
       const refresh = localStorage.getItem('refresh_token');
-      const currentUser = user;
+      const storedUserId = localStorage.getItem('user_id');
+      const currentUserId =
+        user?.id ??
+        (storedUserId && /^\d+$/.test(storedUserId) ? parseInt(storedUserId, 10) : null);
 
-      if (!refresh || !currentUser) {
+      if (!refresh || !currentUserId) {
         return false;
       }
 
       const res = await api.post('/api/v1/refresh', {
         refresh_token: refresh,
-        user_id: currentUser.id
+        user_id: currentUserId
       });
 
       const { access_token, refresh_token: newRefresh } = res.data;
@@ -164,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newRefresh) {
         localStorage.setItem('refresh_token', newRefresh);
       }
+      localStorage.setItem('user_id', String(currentUserId));
 
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
@@ -175,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Refresh failed, clear auth
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_id');
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
       return false;

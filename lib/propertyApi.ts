@@ -66,6 +66,18 @@ export interface DeletePropertyResponse {
   message: string;
   data: {
     deleted: boolean;
+    property_id?: number;
+    trashed?: boolean;
+    permanent?: boolean;
+  };
+}
+
+export interface UploadPropertyImagesResponse {
+  success: boolean;
+  message: string;
+  data: {
+    uploaded_images: number[];
+    image_urls: string[];
   };
 }
 
@@ -175,12 +187,43 @@ export async function updateProperty(
 /**
  * Delete a property (requires host authentication)
  */
-export async function deleteProperty(id: number): Promise<DeletePropertyResponse> {
+export async function deleteProperty(
+  id: number,
+  options?: { force?: boolean }
+): Promise<DeletePropertyResponse> {
   try {
-    const response = await api.delete<DeletePropertyResponse>(`/api/v1/properties/${id}`);
+    const response = await api.delete<DeletePropertyResponse>(`/api/v1/hosts/properties/${id}`, {
+      params: options?.force ? { force: true } : {},
+    });
     return response.data;
   } catch (error) {
     console.error(`Error deleting property ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Upload one or more images to a property using WordPress media library
+ */
+export async function uploadPropertyImages(
+  id: number,
+  files: File[]
+): Promise<UploadPropertyImagesResponse> {
+  try {
+    const formData = new FormData();
+
+    files.forEach((file) => {
+      formData.append("images[]", file);
+    });
+
+    const response = await api.post<UploadPropertyImagesResponse>(
+      `/api/v1/properties/${id}/images`,
+      formData
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error(`Error uploading images for property ${id}:`, error);
     throw error;
   }
 }

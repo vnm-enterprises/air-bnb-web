@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { createProperty } from "@/lib/propertyApi";
+import { createProperty, uploadPropertyImages } from "@/lib/propertyApi";
 
 type Step = { n: number; label: string };
 
@@ -30,7 +30,7 @@ export default function AddPropertyBasicsPage() {
   const [bedrooms, setBedrooms] = useState("2");
   const [bathrooms, setBathrooms] = useState("2");
   const [amenities, setAmenities] = useState<string[]>([]);
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,14 +42,17 @@ export default function AddPropertyBasicsPage() {
     }
   }, [isAuthenticated, isHost, router]);
 
-  const remaining = useMemo(() => Math.max(0, 500 - desc.length), [desc]);
-
   const handleAmenityToggle = (amenity: string) => {
     setAmenities(prev => 
       prev.includes(amenity) 
         ? prev.filter(a => a !== amenity)
         : [...prev, amenity]
     );
+  };
+
+  const handleImageSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setImageFiles(files);
   };
 
   const handleSubmit = async () => {
@@ -73,21 +76,38 @@ export default function AddPropertyBasicsPage() {
         bedrooms: parseInt(bedrooms),
         bathrooms: parseFloat(bathrooms),
         amenities: amenities.length > 0 ? amenities : ["WiFi", "Kitchen"],
-        images: imageUrl ? [imageUrl] : ["https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80"],
         status: "pending"
       };
 
       const response = await createProperty(propertyData);
       
       if (response.success) {
+        if (imageFiles.length > 0) {
+          try {
+            await uploadPropertyImages(response.data.id, imageFiles);
+          } catch (uploadErr: unknown) {
+            console.error('Error uploading property images:', uploadErr);
+            setError('Property created, but image upload failed. You can upload images later from WordPress Media.');
+          }
+        }
+
         setSuccess(true);
         setTimeout(() => {
           router.push('/host/listings');
         }, 2000);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating property:', err);
-      setError(err.response?.data?.message || 'Failed to create property. Please try again.');
+
+      const message =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : 'Failed to create property. Please try again.';
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -318,17 +338,23 @@ export default function AddPropertyBasicsPage() {
 
                 <div>
                   <label className="text-[11px] font-semibold text-slate-700">
-                    Property Image URL (optional)
+                    Property Photos
                   </label>
                   <input
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                    className="mt-2 w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageSelection}
+                    className="mt-2 block w-full text-[12px] text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-[#2C5F5D] file:px-3 file:py-2 file:text-[11px] file:font-semibold file:text-white hover:file:bg-[#244f4d]"
                   />
                   <p className="text-[10px] text-slate-400 mt-2">
-                    Leave blank to use a default image
+                    Photos are uploaded to WordPress Media Library after property creation.
                   </p>
+                  {imageFiles.length > 0 && (
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      {imageFiles.length} image{imageFiles.length > 1 ? 's' : ''} selected
+                    </p>
+                  )}
                 </div>
               </div>
             </section>

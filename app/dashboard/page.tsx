@@ -180,17 +180,21 @@ export default function MyBookingsPage() {
 
     try {
       await cancelBooking(bookingId);
-      
-      // Update local state - remove from current list and add to cancelled
-      setBookings(prevBookings => 
-        prevBookings.map(b => 
+
+      // Clear Next.js router cache so the property page re-fetches fresh
+      // unavailable dates the next time the user navigates to it.
+      router.refresh();
+
+      // Update local state
+      setBookings(prevBookings =>
+        prevBookings.map(b =>
           b.id === bookingId ? { ...b, status: 'cancelled' as const } : b
         )
       );
 
       // Show success message
       alert('Booking cancelled successfully');
-      
+
       // Switch to cancelled tab if not already there
       if (activeTab !== 'cancelled') {
         setActiveTab('cancelled');

@@ -112,7 +112,7 @@ function parseTextParam(value: string | null): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function toFilterState(searchParams: URLSearchParams | ReadonlyURLSearchParams): GetPropertiesParams {
+function toFilterState(searchParams: { get(key: string): string | null }): GetPropertiesParams {
   return {
     search: parseTextParam(searchParams.get("search")),
     location: parseTextParam(searchParams.get("location")),
