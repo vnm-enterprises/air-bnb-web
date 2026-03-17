@@ -90,6 +90,8 @@ export interface GetPropertiesParams {
   bedrooms?: number;
   guests?: number;
   location?: string;
+  check_in?: string;
+  check_out?: string;
   sort?: 'created_desc' | 'price_asc' | 'price_desc';
 }
 

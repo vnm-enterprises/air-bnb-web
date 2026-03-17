@@ -8,6 +8,8 @@ function toFilterState(filters: GetPropertiesParams): GetPropertiesParams {
   return {
     search: filters.search,
     location: filters.location,
+    check_in: filters.check_in,
+    check_out: filters.check_out,
     min_price: filters.min_price,
     max_price: filters.max_price,
     bedrooms: filters.bedrooms,
@@ -19,6 +21,8 @@ function toFilterState(filters: GetPropertiesParams): GetPropertiesParams {
 const EMPTY_FILTERS: GetPropertiesParams = {
   search: undefined,
   location: undefined,
+  check_in: undefined,
+  check_out: undefined,
   min_price: undefined,
   max_price: undefined,
   bedrooms: undefined,

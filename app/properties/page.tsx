@@ -112,10 +112,20 @@ function parseTextParam(value: string | null): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function parseDateParam(value: string | null): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
 function toFilterState(searchParams: { get(key: string): string | null }): GetPropertiesParams {
   return {
     search: parseTextParam(searchParams.get("search")),
     location: parseTextParam(searchParams.get("location")),
+    check_in: parseDateParam(searchParams.get("check_in") ?? searchParams.get("checkin")),
+    check_out: parseDateParam(searchParams.get("check_out") ?? searchParams.get("checkout")),
     min_price: parseNonNegativeNumber(searchParams.get("min_price")),
     max_price: parseNonNegativeNumber(searchParams.get("max_price")),
     bedrooms: parsePositiveInteger(searchParams.get("bedrooms")),
@@ -129,6 +139,8 @@ function applyFilterParams(params: URLSearchParams, filters: GetPropertiesParams
   const entries: Array<[keyof GetPropertiesParams, string | number | undefined]> = [
     ["search", filters.search],
     ["location", filters.location],
+    ["check_in", filters.check_in],
+    ["check_out", filters.check_out],
     ["min_price", filters.min_price],
     ["max_price", filters.max_price],
     ["bedrooms", filters.bedrooms],
@@ -178,6 +190,8 @@ export default function PropertiesPage() {
     () => ({
       search: appliedFilters.search,
       location: appliedFilters.location,
+      check_in: appliedFilters.check_in,
+      check_out: appliedFilters.check_out,
       min_price: appliedFilters.min_price,
       max_price: appliedFilters.max_price,
       bedrooms: appliedFilters.bedrooms,
@@ -186,6 +200,8 @@ export default function PropertiesPage() {
     }),
     [
       appliedFilters.bedrooms,
+      appliedFilters.check_in,
+      appliedFilters.check_out,
       appliedFilters.guests,
       appliedFilters.location,
       appliedFilters.max_price,
@@ -331,7 +347,7 @@ export default function PropertiesPage() {
 
   const handleResetFilters = () => {
     const nextParams = new URLSearchParams(searchParams.toString());
-    ["search", "location", "min_price", "max_price", "bedrooms", "guests", "sort", "page"].forEach(
+    ["search", "location", "check_in", "check_out", "checkin", "checkout", "min_price", "max_price", "bedrooms", "guests", "sort", "page"].forEach(
       (key) => nextParams.delete(key)
     );
 
@@ -349,7 +365,7 @@ export default function PropertiesPage() {
 
       <main className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          <Breadcrumbs />
+          <Breadcrumbs destination={appliedFilters.location || appliedFilters.search} />
 
           <FilterBar
             filters={baseFilters}
