@@ -13,9 +13,6 @@ import {
   LayoutGrid,
   Home,
   CalendarDays,
-  Mail,
-  BarChart3,
-  Settings,
   MoreHorizontal,
 } from "lucide-react";
 
@@ -358,20 +355,10 @@ export default function HostDashboardPage() {
               <SideLink href="/host/bookings" icon={<CalendarDays className="w-4 h-4" />}>
                 Bookings
               </SideLink>
-              <SideLink href="/host/messages" icon={<Mail className="w-4 h-4" />}>
-                Messages
-              </SideLink>
-              <SideLink href="/host/analytics" icon={<BarChart3 className="w-4 h-4" />}>
-                Analytics
-              </SideLink>
             </div>
           </div>
 
           <div className="mt-auto p-4">
-            <SideLink href="/host/settings" icon={<Settings className="w-4 h-4" />}>
-              Settings
-            </SideLink>
-
             <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
                 🙂

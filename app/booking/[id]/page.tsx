@@ -5,10 +5,11 @@ import Footer from "@/components/layout/Footer";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Calendar, MapPin, Users, Receipt, CreditCard } from "lucide-react";
+import { Calendar, MapPin, Users, Receipt, CreditCard, Star } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { getBookingById, cancelBooking } from "@/lib/bookingApi";
 import { getPropertyById, Property } from "@/lib/propertyApi";
+import { createReview } from "@/lib/reviewApi";
 
 type BookingDetails = {
   id: number;
@@ -79,6 +80,22 @@ function getNightCount(checkIn: string, checkOut: string): number {
   return Math.max(0, nights);
 }
 
+function getApiMessage(error: unknown, fallback: string): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error
+  ) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+
+  return fallback;
+}
+
 export default function BookingDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -90,6 +107,11 @@ export default function BookingDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const bookingId = useMemo(() => {
     const raw = params?.id;
@@ -156,6 +178,10 @@ export default function BookingDetailsPage() {
 
         setBooking(normalizedBooking);
         setProperty(propertyData);
+        setReviewSubmitted(false);
+        setReviewFeedback(null);
+        setReviewComment("");
+        setReviewRating(5);
       } catch (err: any) {
         if (!active) {
           return;
@@ -211,6 +237,63 @@ export default function BookingDetailsPage() {
       setCancelError(apiMessage || 'Failed to cancel booking');
     } finally {
       setCanceling(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!booking) return;
+
+    const comment = reviewComment.trim();
+
+    if (reviewRating < 1 || reviewRating > 5) {
+      setReviewFeedback({ type: "error", message: "Please select a rating between 1 and 5." });
+      return;
+    }
+
+    if (comment.length < 3) {
+      setReviewFeedback({ type: "error", message: "Please add a short comment for your review." });
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewFeedback(null);
+
+    try {
+      await createReview({
+        booking_id: booking.id,
+        rating: reviewRating,
+        comment,
+      });
+
+      setReviewSubmitted(true);
+      setReviewComment("");
+      setReviewFeedback({
+        type: "success",
+        message: "Review submitted successfully. It is now pending moderation.",
+      });
+    } catch (err: unknown) {
+      const statusCode =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { status?: number } }).response?.status === "number"
+          ? (err as { response?: { status?: number } }).response?.status
+          : undefined;
+
+      if (statusCode === 409) {
+        setReviewSubmitted(true);
+        setReviewFeedback({
+          type: "success",
+          message: "A review already exists for this booking.",
+        });
+      } else {
+        setReviewFeedback({
+          type: "error",
+          message: getApiMessage(err, "Failed to submit review."),
+        });
+      }
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -270,6 +353,7 @@ export default function BookingDetailsPage() {
       ? property.images[0]
       : "https://images.unsplash.com/photo-1517457373614-b7152f800908?auto=format&fit=crop&w=900&q=80";
   const status = normalizeStatus(booking.status);
+  const canReview = status === "completed";
 
   return (
     <>
@@ -382,6 +466,78 @@ export default function BookingDetailsPage() {
               </div>
             </div>
           </section>
+
+          {canReview && (
+            <section className="mt-8 bg-white border rounded-2xl shadow-sm p-6">
+              <h3 className="text-xl font-semibold text-slate-900">Share your experience</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Your review helps other travelers and supports hosts.
+              </p>
+
+              <div className="mt-5">
+                <p className="text-sm font-medium text-slate-700 mb-2">Rating</p>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: 5 }, (_, index) => {
+                    const value = index + 1;
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setReviewRating(value)}
+                        className="text-slate-300 hover:text-slate-800 transition"
+                        aria-label={`Set rating to ${value}`}
+                        disabled={reviewSubmitted}
+                      >
+                        <Star
+                          size={20}
+                          className={value <= reviewRating ? "fill-black text-black" : "text-slate-300"}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label htmlFor="review-comment" className="text-sm font-medium text-slate-700">
+                  Comment
+                </label>
+                <textarea
+                  id="review-comment"
+                  value={reviewComment}
+                  onChange={(event) => setReviewComment(event.target.value)}
+                  disabled={reviewSubmitted}
+                  placeholder="Tell others what stood out about this stay"
+                  className="mt-2 w-full min-h-[130px] rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+                />
+              </div>
+
+              {reviewFeedback && (
+                <div
+                  className={`mt-4 rounded-lg p-3 text-sm ${
+                    reviewFeedback.type === "success"
+                      ? "bg-green-50 border border-green-200 text-green-700"
+                      : "bg-red-50 border border-red-200 text-red-700"
+                  }`}
+                >
+                  {reviewFeedback.message}
+                </div>
+              )}
+
+              <button
+                onClick={() => void handleSubmitReview()}
+                disabled={reviewSubmitting || reviewSubmitted}
+                className="mt-5 px-5 py-2.5 rounded-lg bg-[#2C5F5D] text-white text-sm font-medium hover:bg-[#244f4d] transition disabled:opacity-60"
+              >
+                {reviewSubmitted
+                  ? "Review submitted"
+                  : reviewSubmitting
+                    ? "Submitting review..."
+                    : "Submit review"}
+              </button>
+            </section>
+          )}
         </div>
       </main>
 

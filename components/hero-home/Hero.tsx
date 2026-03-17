@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { Search } from "lucide-react";
 import { DayPicker, DateRange } from "react-day-picker";
 import { useRouter } from "next/navigation";
@@ -37,16 +36,20 @@ export default function Hero() {
     }));
   };
 
-  const handleSearch = () => {
-    const params = new URLSearchParams();
+  const handleSearch = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
 
-    if (location) params.append("location", location);
-    if (range?.from) params.append("checkin", formatDate(range.from));
-    if (range?.to) params.append("checkout", formatDate(range.to));
+    const params = new URLSearchParams();
+    const normalizedLocation = location.trim();
+
+    if (normalizedLocation) params.append("location", normalizedLocation);
+    if (range?.from) params.append("check_in", formatDate(range.from));
+    if (range?.to) params.append("check_out", formatDate(range.to));
     if (totalGuests > 0)
       params.append("guests", totalGuests.toString());
 
-    router.push(`/properties?${params.toString()}`);
+    const query = params.toString();
+    router.push(query ? `/properties?${query}` : "/properties");
   };
 
   return (
@@ -55,6 +58,7 @@ export default function Hero() {
       {/* Background */}
       <img
         src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2000&auto=format&fit=crop"
+        alt=""
         className="absolute inset-0 w-full h-full object-cover"
       />
       <div className="absolute inset-0 bg-black/40" />
@@ -70,7 +74,10 @@ export default function Hero() {
         </p>
 
         {/* Search Bar */}
-        <div className="bg-white rounded-full shadow-lg flex flex-col md:flex-row overflow-hidden text-black relative">
+        <form
+          onSubmit={handleSearch}
+          className="bg-white rounded-full shadow-lg flex flex-col md:flex-row overflow-hidden text-black relative"
+        >
 
           {/* WHERE */}
           <div className="flex-1 px-6 py-4 border-b md:border-b-0 md:border-r">
@@ -120,16 +127,16 @@ export default function Hero() {
             </div>
 
             <button
+              type="submit"
               onClick={(e) => {
                 e.stopPropagation();
-                handleSearch();
               }}
               className="bg-[#306966] text-white p-3 rounded-full"
             >
               <Search size={18} />
             </button>
           </div>
-        </div>
+        </form>
 
         {/* CALENDAR POPUP */}
         {showCalendar && (

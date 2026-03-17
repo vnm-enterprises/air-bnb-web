@@ -1,9 +1,9 @@
 "use client";
 
-export default function Breadcrumbs() {
+export default function Breadcrumbs({ destination }: { destination?: string }) {
   return (
     <div className="text-sm text-gray-500 mb-4">
-      Home › Sri Lanka › Colombo
+      Home › Stays › {destination || "All locations"}
     </div>
   );
 }
