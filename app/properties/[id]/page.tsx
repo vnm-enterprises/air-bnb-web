@@ -9,6 +9,7 @@ import { DayPicker, DateRange, Matcher } from "react-day-picker";
 import { differenceInDays } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { getPropertyById, getUnavailableDates, Property } from "@/lib/propertyApi";
+import { getPropertyReviews, replyToReview, type PropertyReview } from "@/lib/reviewApi";
 import { useWishlist } from "@/hooks/useWishlist";
 import "react-day-picker/dist/style.css";
 
@@ -50,10 +51,26 @@ function parseDateOnly(dateString: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function getApiMessage(error: unknown, fallback: string): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error
+  ) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+
+  return fallback;
+}
+
 export default function PropertyPage() {
   const params = useParams();
   const router = useRouter();
-  const { isHost, isAuthenticated } = useAuth();
+  const { isHost, isAuthenticated, user } = useAuth();
   const { isInWishlist, isProcessing, toggleWishlist, canUseWishlist } = useWishlist();
 
   const [property, setProperty] = useState<Property | null>(null);
@@ -64,6 +81,11 @@ export default function PropertyPage() {
   const [range, setRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState(1);
   const [disabledDateMatchers, setDisabledDateMatchers] = useState<Matcher[]>([]);
+  const [reviews, setReviews] = useState<PropertyReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [reviewReplyDrafts, setReviewReplyDrafts] = useState<Record<number, string>>({});
+  const [replyingReviewId, setReplyingReviewId] = useState<number | null>(null);
 
   const earliestBookableDate = useMemo(() => {
     const today = new Date();
@@ -185,6 +207,46 @@ export default function PropertyPage() {
     setGuests((current) => Math.min(Math.max(current, 1), maxGuests));
   }, [property]);
 
+  useEffect(() => {
+    if (!Number.isFinite(propertyId) || propertyId <= 0) {
+      return;
+    }
+
+    let active = true;
+
+    const fetchReviews = async () => {
+      setReviewsLoading(true);
+      setReviewsError(null);
+
+      try {
+        const response = await getPropertyReviews(propertyId, { page: 1, per_page: 20 });
+
+        if (!active) {
+          return;
+        }
+
+        setReviews(response.data.reviews || []);
+      } catch (err: unknown) {
+        if (!active) {
+          return;
+        }
+
+        setReviews([]);
+        setReviewsError(getApiMessage(err, "Failed to load reviews"));
+      } finally {
+        if (active) {
+          setReviewsLoading(false);
+        }
+      }
+    };
+
+    fetchReviews();
+
+    return () => {
+      active = false;
+    };
+  }, [propertyId]);
+
   const imageUrls = useMemo(() => {
     if (!property?.images || !Array.isArray(property.images)) {
       return [FALLBACK_IMAGE];
@@ -220,6 +282,42 @@ export default function PropertyPage() {
 
   const maxGuests = Math.max(1, Number(property?.max_guests || 1));
   const guestOptions = Array.from({ length: maxGuests }, (_, index) => index + 1);
+
+  const handleHostReply = async (reviewId: number) => {
+    const reply = (reviewReplyDrafts[reviewId] || "").trim();
+
+    if (!reply) {
+      setReviewsError("Reply cannot be empty");
+      return;
+    }
+
+    setReviewsError(null);
+    setReplyingReviewId(reviewId);
+
+    try {
+      await replyToReview(reviewId, reply);
+
+      setReviews((current) =>
+        current.map((review) =>
+          review.id === reviewId
+            ? {
+                ...review,
+                host_reply: reply,
+              }
+            : review
+        )
+      );
+
+      setReviewReplyDrafts((current) => ({
+        ...current,
+        [reviewId]: "",
+      }));
+    } catch (err: unknown) {
+      setReviewsError(getApiMessage(err, "Failed to add host reply"));
+    } finally {
+      setReplyingReviewId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -258,6 +356,9 @@ export default function PropertyPage() {
   const beds = Math.max(1, Number(property.bedrooms || 1));
   const listedOn = formatDateLabel(property.created_at);
   const hostName = (property.host_name || "Host").trim() || "Host";
+  const isPropertyHostOwner = Boolean(
+    isHost() && user?.id && Number(user.id) === Number(property.host_id)
+  );
 
   return (
     <>
@@ -365,6 +466,88 @@ export default function PropertyPage() {
                 </>
               ) : (
                 <p className="text-sm text-gray-500">Amenities will be available soon.</p>
+              )}
+            </div>
+
+            <hr />
+
+            <div>
+              <h3 className="text-lg font-semibold mb-6">Guest reviews</h3>
+
+              {reviewsLoading ? (
+                <p className="text-sm text-gray-500">Loading reviews...</p>
+              ) : reviewsError ? (
+                <p className="text-sm text-red-600">{reviewsError}</p>
+              ) : reviews.length === 0 ? (
+                <p className="text-sm text-gray-500">No approved reviews yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border border-slate-200 rounded-xl p-4 bg-white">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-slate-900">{review.reviewer_name || "Guest"}</p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-sm">
+                          {Array.from({ length: 5 }, (_, index) => {
+                            const starValue = index + 1;
+                            return (
+                              <Star
+                                key={`${review.id}-${starValue}`}
+                                size={14}
+                                className={
+                                  starValue <= Number(review.rating)
+                                    ? "fill-black text-black"
+                                    : "text-gray-300"
+                                }
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-sm text-slate-700 leading-relaxed">
+                        {review.comment || "No comment provided."}
+                      </p>
+
+                      {review.host_reply && (
+                        <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            Host reply
+                          </p>
+                          <p className="mt-1 text-sm text-slate-700">{review.host_reply}</p>
+                        </div>
+                      )}
+
+                      {isPropertyHostOwner && !review.host_reply && (
+                        <div className="mt-3">
+                          <textarea
+                            value={reviewReplyDrafts[review.id] || ""}
+                            onChange={(event) =>
+                              setReviewReplyDrafts((current) => ({
+                                ...current,
+                                [review.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Write a reply to this guest"
+                            className="w-full min-h-[90px] rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                          />
+                          <button
+                            onClick={() => void handleHostReply(review.id)}
+                            disabled={replyingReviewId === review.id}
+                            className="mt-2 px-4 py-2 text-sm rounded-lg bg-[#2C5F5D] text-white hover:bg-[#244f4d] transition disabled:opacity-60"
+                          >
+                            {replyingReviewId === review.id ? "Posting reply..." : "Reply as host"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 

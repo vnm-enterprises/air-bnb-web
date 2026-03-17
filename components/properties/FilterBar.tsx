@@ -34,14 +34,10 @@ export default function FilterBar({
   filters,
   onApply,
   onReset,
-  mapEnabled,
-  toggleMap,
 }: {
   filters: GetPropertiesParams;
   onApply: (filters: GetPropertiesParams) => void;
   onReset: () => void;
-  mapEnabled: boolean;
-  toggleMap: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<GetPropertiesParams>(toFilterState(filters));
@@ -152,13 +148,6 @@ export default function FilterBar({
           className="ml-auto border px-4 py-2 rounded-full text-sm hover:bg-gray-100"
         >
           Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-        </button>
-
-        <button
-          onClick={toggleMap}
-          className="border px-4 py-2 rounded-full text-sm hover:bg-gray-100"
-        >
-          {mapEnabled ? "Hide Map" : "Show Map"}
         </button>
 
         {hasActiveFilters && (
