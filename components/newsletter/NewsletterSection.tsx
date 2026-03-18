@@ -1,102 +1,129 @@
 "use client";
 
-import { Mail, CheckCircle, X } from "lucide-react";
+import { Mail, CheckCircle, X, AlertCircle } from "lucide-react";
 import { useState } from "react";
+import api from "@/lib/axios";
+
+type ApiErrorShape = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+};
 
 export default function NewsletterSection() {
   const [email, setEmail] = useState("");
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email) return;
+    if (!email.trim()) {
+      return;
+    }
 
-    setOpen(true);
-    setEmail("");
+    setSubmitting(true);
+    setError(null);
 
-    setTimeout(() => {
-      setOpen(false);
-    }, 3000);
+    try {
+      await api.post("/api/v1/newsletter/subscribe", { email: email.trim() });
+      setOpen(true);
+      setEmail("");
+
+      setTimeout(() => {
+        setOpen(false);
+      }, 3000);
+    } catch (err: unknown) {
+      const apiError = err as ApiErrorShape;
+      const message =
+        apiError.response?.data?.message ||
+        "Subscription failed. Please try again in a moment.";
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
-      <section className="py-24 relative">
-        <div className="max-w-3xl mx-auto text-center px-4">
-          <div className="inline-flex items-center justify-center size-16 bg-[#2E5E59]/10 rounded-2xl mb-6">
-            <Mail className="text-[#2E5E59] w-8 h-8" />
+      <section className="relative py-20 sm:py-24">
+        <div className="mx-auto max-w-3xl px-4 text-center">
+          <div className="mb-6 inline-flex size-16 items-center justify-center rounded-2xl bg-[#2E5E59]/10">
+            <Mail className="h-8 w-8 text-[#2E5E59]" />
           </div>
 
-          <h3 className="text-4xl font-black text-slate-900 mb-4">
+          <h3 className="mb-4 text-3xl font-black text-slate-900 sm:text-4xl">
             Your next journey begins here
           </h3>
 
-          <p className="text-slate-500 mb-10 text-lg font-medium">
+          <p className="mb-8 text-base font-medium text-slate-500 sm:mb-10 sm:text-lg">
             Subscribe to receive exclusive offers and handpicked travel guides.
           </p>
 
           <form
             onSubmit={handleSubmit}
-            className="flex flex-col sm:flex-row gap-3 p-1.5 bg-white rounded-2xl shadow-xl border border-slate-100"
+            className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl sm:flex-row"
           >
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 rounded-xl border-none bg-transparent px-6 py-4 focus:ring-0 text-slate-900 font-medium outline-none"
+              className="flex-1 rounded-xl border-none bg-transparent px-5 py-3 font-medium text-slate-900 outline-none sm:px-6 sm:py-4"
               placeholder="Enter your email address"
               type="email"
+              autoComplete="email"
               required
             />
 
             <button
               type="submit"
-              className="bg-[#2E5E59] text-white font-bold px-10 py-4 rounded-xl shadow-lg shadow-[#2C5F5D]/20 hover:brightness-110 transition-all"
+              disabled={submitting}
+              className="rounded-xl bg-[#2E5E59] px-8 py-3 font-bold text-white shadow-lg shadow-[#2C5F5D]/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70 sm:px-10 sm:py-4"
             >
-              Join Now
+              {submitting ? "Joining..." : "Join Now"}
             </button>
           </form>
+
+          {error && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* SUCCESS MODAL */}
       {open && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-
-          {/* BACKDROP */}
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn"
             onClick={() => setOpen(false)}
           />
 
-          {/* MODAL */}
-          <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 text-center animate-scaleIn">
-
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-scaleIn">
             <button
               onClick={() => setOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+              aria-label="Close success message"
             >
               <X size={20} />
             </button>
 
-            <div className="flex items-center justify-center mb-6">
-              <CheckCircle className="w-16 h-16 text-[#2E5E59]" />
+            <div className="mb-6 flex items-center justify-center">
+              <CheckCircle className="h-16 w-16 text-[#2E5E59]" />
             </div>
 
-            <h4 className="text-2xl font-bold text-slate-900 mb-3">
-              You’re all set 🎉
-            </h4>
+            <h4 className="mb-3 text-2xl font-bold text-slate-900">You are all set</h4>
 
-            <p className="text-slate-500 text-sm">
-              Thank you for joining!
-              Please check your email to confirm your subscription.
+            <p className="text-sm text-slate-500">
+              Thank you for joining. Please check your email to confirm your subscription.
             </p>
-
           </div>
         </div>
       )}
 
-      {/* Animations */}
       <style jsx>{`
         .animate-fadeIn {
           animation: fadeIn 0.25s ease-out forwards;
@@ -105,12 +132,22 @@ export default function NewsletterSection() {
           animation: scaleIn 0.25s ease-out forwards;
         }
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
         @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.9); }
-          to { opacity: 1; transform: scale(1); }
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
         }
       `}</style>
     </>
