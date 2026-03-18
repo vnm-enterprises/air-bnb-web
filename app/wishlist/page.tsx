@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Heart, Star, Share2 } from "lucide-react";
+import { Heart, Star, Share2, Trash2 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/context/AuthContext";
@@ -12,15 +13,47 @@ import { getMyWishlist, removeFromWishlist } from "@/lib/wishlistApi";
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80";
 
+type Notice = {
+  type: "error" | "success";
+  message: string;
+} | null;
+
+function getApiMessage(error: unknown, fallback: string): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error
+  ) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+
+    if (typeof response?.data?.message === "string" && response.data.message.trim().length > 0) {
+      return response.data.message;
+    }
+  }
+
+  return fallback;
+}
+
+function WishlistCardSkeleton() {
+  return (
+    <div className="animate-pulse overflow-hidden rounded-2xl border border-[#d8e8e7] bg-white p-3 shadow-sm">
+      <div className="h-48 rounded-xl bg-slate-200" />
+      <div className="mt-4 h-5 w-3/4 rounded bg-slate-200" />
+      <div className="mt-2 h-4 w-1/2 rounded bg-slate-200" />
+      <div className="mt-4 h-4 w-1/3 rounded bg-slate-200" />
+    </div>
+  );
+}
+
 export default function WishlistPage() {
   const router = useRouter();
   const { isAuthenticated, isTraveler, loading } = useAuth();
+
   const [properties, setProperties] = useState<Property[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
-  const [dataError, setDataError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
 
-  // Protect this route - only travelers can have wishlists
   useEffect(() => {
     if (!loading && (!isAuthenticated || !isTraveler())) {
       router.push("/login");
@@ -36,7 +69,7 @@ export default function WishlistPage() {
 
     const fetchWishlist = async () => {
       setDataLoading(true);
-      setDataError(null);
+      setNotice(null);
 
       try {
         const response = await getMyWishlist();
@@ -46,13 +79,15 @@ export default function WishlistPage() {
         }
 
         setProperties(response.data.properties || []);
-      } catch (error: any) {
+      } catch (fetchError: unknown) {
         if (!active) {
           return;
         }
 
-        const apiMessage = error?.response?.data?.message;
-        setDataError(apiMessage || "Failed to load wishlist");
+        setNotice({
+          type: "error",
+          message: getApiMessage(fetchError, "Failed to load your wishlist."),
+        });
         setProperties([]);
       } finally {
         if (active) {
@@ -61,32 +96,71 @@ export default function WishlistPage() {
       }
     };
 
-    fetchWishlist();
+    void fetchWishlist();
 
     return () => {
       active = false;
     };
   }, [loading, isAuthenticated, isTraveler]);
 
+  const averagePrice = useMemo(() => {
+    if (!properties.length) {
+      return 0;
+    }
+
+    const total = properties.reduce((sum, property) => sum + Number(property.price || 0), 0);
+    return Math.round(total / properties.length);
+  }, [properties]);
+
   const handleRemove = async (propertyId: number) => {
-    setDataError(null);
+    setNotice(null);
     setRemovingId(propertyId);
 
     try {
       await removeFromWishlist(propertyId);
       setProperties((current) => current.filter((property) => property.id !== propertyId));
-    } catch (error: any) {
-      const apiMessage = error?.response?.data?.message;
-      setDataError(apiMessage || "Failed to remove property from wishlist");
+      setNotice({ type: "success", message: "Removed from wishlist." });
+    } catch (removeError: unknown) {
+      setNotice({
+        type: "error",
+        message: getApiMessage(removeError, "Failed to remove property from wishlist."),
+      });
     } finally {
       setRemovingId(null);
     }
   };
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/wishlist`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "My StayTeal Wishlist",
+          text: "Check out my favorite properties",
+          url,
+        });
+      } catch {
+        // No action needed when user cancels native share
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice({ type: "success", message: "Wishlist link copied to clipboard." });
+    } catch {
+      setNotice({
+        type: "error",
+        message: "Could not copy the link. Please copy it manually from the address bar.",
+      });
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#2C5F5D]" />
       </div>
     );
   }
@@ -94,53 +168,82 @@ export default function WishlistPage() {
   return (
     <>
       <Header />
-      <div className="min-h-screen bg-[#f7f7f7] px-6 py-10">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
-            <div>
-              <h1 className="text-3xl font-semibold">Saved Properties</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                You have {properties.length} saved {properties.length === 1 ? "property" : "properties"}.
-              </p>
-            </div>
 
-            <button className="flex items-center gap-2 border px-4 py-2 rounded-lg bg-white hover:bg-gray-50 transition text-sm">
-              <Share2 className="w-4 h-4" />
+      <main className="min-h-screen bg-gradient-to-b from-[#ebf4f4] via-[#f7fbfb] to-white px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <section className="mb-8 rounded-3xl border border-[#d7e8e7] bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#2C5F5D]">Saved Stays</p>
+                <h1 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">My Wishlist</h1>
+                <p className="mt-2 text-sm text-slate-600">
+                  Keep track of favorite places and return when you are ready to book.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-center text-sm sm:w-auto">
+                <div className="rounded-xl border border-[#d8e8e7] bg-[#f8fcfc] px-4 py-3">
+                  <p className="text-xs text-slate-500">Saved</p>
+                  <p className="text-xl font-bold text-slate-900">{properties.length}</p>
+                </div>
+                <div className="rounded-xl border border-[#d8e8e7] bg-[#f8fcfc] px-4 py-3">
+                  <p className="text-xs text-slate-500">Avg/Night</p>
+                  <p className="text-xl font-bold text-slate-900">${averagePrice || 0}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center gap-2 rounded-full border border-[#c8dddc] bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-[#edf5f5]"
+            >
+              <Share2 className="h-4 w-4" />
               Share List
+            </button>
+
+            <button
+              onClick={() => router.push("/properties")}
+              className="rounded-full bg-[#2C5F5D] px-5 py-2 text-sm font-semibold text-white hover:bg-[#244f4d]"
+            >
+              Browse More Stays
             </button>
           </div>
 
-          {dataError && (
-            <div className="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm">
-              {dataError}
+          {notice && (
+            <div
+              className={`mb-6 rounded-xl border px-4 py-3 text-sm font-medium ${
+                notice.type === "success"
+                  ? "border-green-200 bg-green-50 text-green-700"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {notice.message}
             </div>
           )}
 
           {dataLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="animate-pulse space-y-4">
-                  <div className="h-48 bg-gray-200 rounded-xl" />
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2" />
-                </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <WishlistCardSkeleton key={index} />
               ))}
             </div>
           ) : properties.length === 0 ? (
-            <div className="border border-slate-200 bg-white rounded-xl p-8 text-center">
+            <div className="rounded-2xl border border-[#d8e8e7] bg-white p-10 text-center shadow-sm">
               <h2 className="text-xl font-semibold text-slate-900">Your wishlist is empty</h2>
-              <p className="text-sm text-slate-500 mt-2">
+              <p className="mt-2 text-sm text-slate-500">
                 Browse properties and tap the heart icon to save your favorites.
               </p>
               <button
                 onClick={() => router.push("/properties")}
-                className="mt-5 px-5 py-2.5 rounded-lg bg-[#2C5F5D] text-white text-sm font-medium hover:bg-[#244f4d] transition"
+                className="mt-5 rounded-full bg-[#2C5F5D] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#244f4d]"
               >
                 Explore Properties
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
               {properties.map((property) => {
                 const image =
                   Array.isArray(property.images) && property.images.length > 0
@@ -149,52 +252,72 @@ export default function WishlistPage() {
                 const ratingValue = Number(property.rating_average || 0);
 
                 return (
-                  <div
+                  <article
                     key={property.id}
-                    className="group cursor-pointer"
-                    onClick={() => router.push(`/properties/${property.id}`)}
+                    className="group overflow-hidden rounded-2xl border border-[#d8e8e7] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
                   >
-                    <div className="relative overflow-hidden rounded-xl">
-                      <img
-                        src={image}
-                        alt={property.title}
-                        className="h-48 w-full object-cover group-hover:scale-105 transition duration-300"
-                      />
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleRemove(property.id);
-                        }}
-                        disabled={removingId === property.id}
-                        className="absolute top-3 right-3 bg-white p-2 rounded-full shadow disabled:opacity-60"
-                        aria-label="Remove from wishlist"
-                      >
-                        <Heart className="w-4 h-4 fill-black text-black" />
-                      </button>
-                    </div>
-
-                    <div className="mt-3 space-y-1">
-                      <div className="flex justify-between text-sm font-medium gap-2">
-                        <span className="line-clamp-1">{property.title}</span>
-                        <span className="flex items-center gap-1 shrink-0">
-                          <Star className="w-4 h-4 fill-black text-black" />
-                          {ratingValue > 0 ? ratingValue.toFixed(1) : "New"}
+                    <button
+                      onClick={() => router.push(`/properties/${property.id}`)}
+                      className="w-full text-left"
+                    >
+                      <div className="relative h-52 overflow-hidden">
+                        <Image
+                          src={image}
+                          alt={property.title}
+                          fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700">
+                          Saved
                         </span>
                       </div>
 
-                      <p className="text-xs text-gray-500 line-clamp-1">{property.location}</p>
+                      <div className="space-y-2 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="line-clamp-1 text-base font-semibold text-slate-900">{property.title}</h3>
+                          <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-700">
+                            <Star className="h-4 w-4 fill-[#2C5F5D] text-[#2C5F5D]" />
+                            {ratingValue > 0 ? ratingValue.toFixed(1) : "New"}
+                          </span>
+                        </div>
 
-                      <p className="text-sm">
-                        <span className="font-semibold">${Number(property.price || 0)}</span> / night
-                      </p>
+                        <p className="line-clamp-1 text-sm text-slate-500">{property.location}</p>
+                        <p className="text-sm text-slate-700">
+                          <span className="text-lg font-bold text-slate-900">${Number(property.price || 0)}</span>
+                          <span className="ml-1 text-xs text-slate-500">/ night</span>
+                        </p>
+                      </div>
+                    </button>
+
+                    <div className="border-t border-[#e3efee] p-3">
+                      <button
+                        onClick={() => void handleRemove(property.id)}
+                        disabled={removingId === property.id}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8d0d0] bg-[#fff5f5] px-3 py-2 text-sm font-semibold text-[#c23d3d] transition hover:bg-[#ffecec] disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label="Remove from wishlist"
+                      >
+                        {removingId === property.id ? (
+                          <>
+                            <Heart className="h-4 w-4 animate-pulse" />
+                            Removing...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4" />
+                            Remove
+                          </>
+                        )}
+                      </button>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
           )}
         </div>
-      </div>
+      </main>
+
       <Footer />
     </>
   );
