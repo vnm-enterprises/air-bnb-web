@@ -104,7 +104,9 @@ export default function FilterBar({
         <button
           onClick={onReset}
           className={`px-4 py-2 border rounded-full text-sm transition ${
-            !hasActiveFilters ? "bg-black text-white border-black" : "hover:bg-gray-100"
+            !hasActiveFilters
+              ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+              : "border-[#c7dddd] text-slate-700 hover:bg-[#edf5f5]"
           }`}
         >
           All stays
@@ -115,7 +117,9 @@ export default function FilterBar({
             applyQuickFilter({ bedrooms: filters.bedrooms === 2 ? undefined : 2 })
           }
           className={`px-4 py-2 border rounded-full text-sm transition ${
-            filters.bedrooms === 2 ? "bg-black text-white border-black" : "hover:bg-gray-100"
+            filters.bedrooms === 2
+              ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+              : "border-[#c7dddd] text-slate-700 hover:bg-[#edf5f5]"
           }`}
         >
           2+ bedrooms
@@ -126,7 +130,9 @@ export default function FilterBar({
             applyQuickFilter({ guests: filters.guests === 4 ? undefined : 4 })
           }
           className={`px-4 py-2 border rounded-full text-sm transition ${
-            filters.guests === 4 ? "bg-black text-white border-black" : "hover:bg-gray-100"
+            filters.guests === 4
+              ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+              : "border-[#c7dddd] text-slate-700 hover:bg-[#edf5f5]"
           }`}
         >
           4+ guests
@@ -137,7 +143,9 @@ export default function FilterBar({
             applyQuickFilter({ sort: filters.sort === "price_asc" ? undefined : "price_asc" })
           }
           className={`px-4 py-2 border rounded-full text-sm transition ${
-            filters.sort === "price_asc" ? "bg-black text-white border-black" : "hover:bg-gray-100"
+            filters.sort === "price_asc"
+              ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+              : "border-[#c7dddd] text-slate-700 hover:bg-[#edf5f5]"
           }`}
         >
           Price low-high
@@ -145,7 +153,7 @@ export default function FilterBar({
 
         <button
           onClick={openDrawer}
-          className="ml-auto border px-4 py-2 rounded-full text-sm hover:bg-gray-100"
+          className="ml-auto rounded-full border border-[#c7dddd] bg-white px-4 py-2 text-sm text-slate-700 hover:bg-[#edf5f5]"
         >
           Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
         </button>
@@ -153,7 +161,7 @@ export default function FilterBar({
         {hasActiveFilters && (
           <button
             onClick={onReset}
-            className="text-sm underline underline-offset-4"
+            className="text-sm text-[#2C5F5D] underline underline-offset-4"
           >
             Reset
           </button>
@@ -200,7 +208,7 @@ export default function FilterBar({
                   }))
                 }
                 placeholder="Search by title or description"
-                className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-black"
+                className="w-full rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
               />
             </div>
 
@@ -216,7 +224,7 @@ export default function FilterBar({
                   }))
                 }
                 placeholder="Colombo, Kandy, Galle..."
-                className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-black"
+                className="w-full rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
               />
             </div>
 
@@ -237,7 +245,7 @@ export default function FilterBar({
                     }))
                   }
                   placeholder="Min"
-                  className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-black"
+                  className="w-full rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
                 />
                 <input
                   type="number"
@@ -250,7 +258,7 @@ export default function FilterBar({
                     }))
                   }
                   placeholder="Max"
-                  className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-black"
+                  className="w-full rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
                 />
               </div>
             </div>
@@ -271,7 +279,9 @@ export default function FilterBar({
                       }))
                     }
                     className={`border px-4 py-2 rounded-full transition ${
-                      draftFilters.bedrooms === n ? "bg-black text-white border-black" : "hover:bg-gray-100"
+                      draftFilters.bedrooms === n
+                        ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+                        : "border-[#c7dddd] text-slate-700 hover:bg-[#edf5f5]"
                     }`}
                   >
                     {n}+
@@ -296,7 +306,9 @@ export default function FilterBar({
                       }))
                     }
                     className={`border px-4 py-2 rounded-full text-sm transition ${
-                      draftFilters.guests === count ? "bg-black text-white border-black" : "hover:bg-gray-100"
+                      draftFilters.guests === count
+                        ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+                        : "border-[#c7dddd] text-slate-700 hover:bg-[#edf5f5]"
                     }`}
                   >
                     {count}+
@@ -321,7 +333,7 @@ export default function FilterBar({
                         : (event.target.value as GetPropertiesParams["sort"]),
                   }))
                 }
-                className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-black"
+                className="w-full rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
               >
                 <option value="created_desc">Newest first</option>
                 <option value="price_asc">Price: low to high</option>
@@ -340,7 +352,7 @@ export default function FilterBar({
             </button>
             <button
               onClick={submitFilters}
-              className="bg-black text-white px-6 py-2 rounded-full"
+              className="rounded-full bg-[#2C5F5D] px-6 py-2 text-white"
             >
               Show results
             </button>
