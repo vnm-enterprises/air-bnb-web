@@ -1,8 +1,7 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Heart, User, Menu, X, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -12,12 +11,35 @@ export default function Header() {
   const { isAuthenticated, user, logout, isHost, isTraveler, loading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onOutsideClick = (event: MouseEvent) => {
+      if (!profileMenuRef.current) {
+        return;
+      }
+
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    if (profileMenuOpen) {
+      document.addEventListener("mousedown", onOutsideClick);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", onOutsideClick);
+    };
+  }, [profileMenuOpen]);
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login');
+    setProfileMenuOpen(false);
+    router.push("/login");
   };
 
   const navLinks = [
@@ -34,85 +56,88 @@ export default function Header() {
   const handleNavigate = (path: string) => {
     router.push(path);
     setMobileOpen(false);
+    setProfileMenuOpen(false);
   };
 
   return (
     <>
-      <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-[1000]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
+      <header className="sticky top-0 z-[1000] w-full border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="text-xl font-bold tracking-tight text-black sm:text-2xl">
+            PropBNB
+          </Link>
 
-            {/* LOGO */}
-            <Link href="/" className="text-2xl font-bold tracking-tight text-black">
-              PropBNB
-            </Link>
+          <nav className="hidden items-center gap-8 text-sm md:flex">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                  onClick={() => setProfileMenuOpen(false)}
+                className={`transition-colors duration-200 ${isActive(link.href)}`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
-            {/* DESKTOP NAV */}
-            <nav className="hidden md:flex items-center gap-8 text-sm">
-              {navLinks.map((link) => (
+          <div className="hidden items-center gap-4 md:flex">
+            {!isAuthenticated && !loading && (
+              <>
                 <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`transition-colors duration-200 ${isActive(link.href)}`}
+                  href="/login"
+                  className="text-sm text-gray-600 transition hover:text-black"
                 >
-                  {link.label}
+                  Login
                 </Link>
-              ))}
-            </nav>
 
-            {/* RIGHT SECTION DESKTOP */}
-            <div className="hidden md:flex items-center gap-4">
+                <Link
+                  href="/signup"
+                  className="rounded-full bg-[#2C5F5D] px-4 py-2 text-sm text-white transition hover:bg-[#244f4d]"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
 
-              {!isAuthenticated && !loading && (
-                <>
+            {isAuthenticated && !loading && (
+              <>
+                {isHost() && (
                   <Link
-                    href="/login"
-                    className="text-sm text-gray-600 hover:text-black transition"
+                    href="/host"
+                    className="text-sm text-gray-600 transition hover:text-black"
                   >
-                    Login
+                    Host Dashboard
                   </Link>
+                )}
 
-                  <Link
-                    href="/signup"
-                    className="text-sm bg-[#2C5F5D] text-white px-4 py-2 rounded-full hover:bg-[#244f4d] transition"
+                {isTraveler() && (
+                  <button
+                    onClick={() => handleNavigate("/wishlist")}
+                    className="rounded-full p-2 transition hover:bg-gray-100"
+                    aria-label="Open wishlist"
                   >
-                    Sign Up
-                  </Link>
-                </>
-              )}
+                    <Heart className="h-5 w-5 text-gray-700" />
+                  </button>
+                )}
 
-              {isAuthenticated && !loading && (
-                <>
-                  {isHost() && (
-                    <Link
-                      href="/host"
-                      className="text-sm text-gray-600 hover:text-black transition"
-                    >
-                      Host Dashboard
-                    </Link>
-                  )}
+                <div className="relative" ref={profileMenuRef}>
+                  <button
+                    className="rounded-full p-2 transition hover:bg-gray-100"
+                    onClick={() => setProfileMenuOpen((prev) => !prev)}
+                    aria-expanded={profileMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label="Open profile menu"
+                  >
+                    <User className="h-5 w-5 text-gray-700" />
+                  </button>
 
-                  {isTraveler() && (
-                    <button
-                      onClick={() => router.push("/wishlist")}
-                      className="p-2 rounded-full hover:bg-gray-100 transition"
-                    >
-                      <Heart className="w-5 h-5 text-gray-700" />
-                    </button>
-                  )}
-
-                  <div className="relative group">
-                    <button className="p-2 rounded-full hover:bg-gray-100 transition">
-                      <User className="w-5 h-5 text-gray-700" />
-                    </button>
-
-                    {/* Dropdown menu */}
-                    <div className="absolute right-0 mt-0 w-40 bg-white border border-slate-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition">
-                      <div className="px-4 py-3 border-b">
-                        <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
-                        <p className="text-xs text-slate-500">{user?.email}</p>
+                  {profileMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-56 rounded-lg border border-slate-200 bg-white shadow-lg">
+                      <div className="border-b px-4 py-3">
+                        <p className="truncate text-sm font-semibold text-slate-900">{user?.name}</p>
+                        <p className="truncate text-xs text-slate-500">{user?.email}</p>
                       </div>
-                      
+
                       <div className="py-2">
                         {isTraveler() && (
                           <Link
@@ -122,61 +147,58 @@ export default function Header() {
                             My Bookings
                           </Link>
                         )}
-                        
+
                         <button
-                          onClick={() => setProfileModalOpen(true)}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            setProfileModalOpen(true);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
                         >
                           Profile Settings
                         </button>
-                        
+
                         <button
                           onClick={handleLogout}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                         >
-                          <LogOut className="w-4 h-4" />
+                          <LogOut className="h-4 w-4" />
                           Logout
                         </button>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* MOBILE HAMBURGER */}
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition"
-            >
-              <Menu className="w-6 h-6 text-gray-800" />
-            </button>
-
+                  )}
+                </div>
+              </>
+            )}
           </div>
+
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="rounded-lg p-2 transition hover:bg-gray-100 md:hidden"
+            aria-label="Open mobile menu"
+          >
+            <Menu className="h-6 w-6 text-gray-800" />
+          </button>
         </div>
       </header>
 
-      {/* MOBILE OVERLAY */}
       {mobileOpen && (
         <>
-          {/* BACKDROP */}
           <div
             onClick={() => setMobileOpen(false)}
-            className="fixed inset-0 bg-black/40 z-[1000]"
+            className="fixed inset-0 z-[1000] bg-black/40"
           />
 
-          {/* PANEL */}
-          <div className="fixed top-0 right-0 h-full w-72 bg-white z-[1001] shadow-xl p-6 flex flex-col transition-transform duration-300">
-
-            <div className="flex justify-between items-center mb-8">
+          <div className="fixed right-0 top-0 z-[1001] flex h-full w-[86vw] max-w-xs flex-col bg-white p-6 shadow-xl sm:w-80">
+            <div className="mb-8 flex items-center justify-between">
               <span className="text-xl font-bold">PropBNB</span>
-              <button onClick={() => setMobileOpen(false)}>
-                <X className="w-6 h-6" />
+              <button onClick={() => setMobileOpen(false)} aria-label="Close mobile menu">
+                <X className="h-6 w-6" />
               </button>
             </div>
 
-            {/* NAV LINKS */}
-            <div className="flex flex-col gap-6 text-sm">
+            <div className="flex flex-col gap-5 text-sm">
               {navLinks.map((link) => (
                 <button
                   key={link.href}
@@ -188,9 +210,8 @@ export default function Header() {
               ))}
             </div>
 
-            <div className="border-t my-6" />
+            <div className="my-6 border-t" />
 
-            {/* AUTH SECTION */}
             {!isAuthenticated && !loading && (
               <div className="flex flex-col gap-4 text-sm">
                 <button
@@ -202,7 +223,7 @@ export default function Header() {
 
                 <button
                   onClick={() => handleNavigate("/signup")}
-                  className="bg-[#2C5F5D] text-white py-2 rounded-full"
+                  className="rounded-full bg-[#2C5F5D] py-2 text-white"
                 >
                   Sign Up
                 </button>
@@ -211,7 +232,7 @@ export default function Header() {
 
             {isAuthenticated && !loading && (
               <div className="flex flex-col gap-4 text-sm">
-                <div className="px-2 py-2 border-b">
+                <div className="border-b px-2 py-2">
                   <p className="font-semibold text-slate-900">{user?.name}</p>
                   <p className="text-xs text-slate-500">{user?.email}</p>
                 </div>
@@ -244,7 +265,10 @@ export default function Header() {
                 )}
 
                 <button
-                  onClick={() => setProfileModalOpen(true)}
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setProfileModalOpen(true);
+                  }}
                   className="text-left text-gray-600 hover:text-black"
                 >
                   Profile Settings
@@ -252,23 +276,18 @@ export default function Header() {
 
                 <button
                   onClick={handleLogout}
-                  className="text-left text-red-600 hover:text-red-700 flex items-center gap-2"
+                  className="flex items-center gap-2 text-left text-red-600 hover:text-red-700"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="h-4 w-4" />
                   Logout
                 </button>
               </div>
             )}
+          </div>
+        </>
+      )}
 
-        </div>
-
-      </>
-    )}
-
-    <ProfileModal 
-      isOpen={profileModalOpen} 
-      onClose={() => setProfileModalOpen(false)} 
-    />
-  </>
-);
+      <ProfileModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
+    </>
+  );
 }
