@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Search, FileDown, FileText, Pencil } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { confirmBooking, getBookingById, getHostBookings } from "@/lib/bookingApi";
@@ -77,8 +76,7 @@ function calculateNightsLabel(checkIn: string, checkOut: string): string {
 }
 
 export default function HostBookingsPage() {
-  const router = useRouter();
-  const { isAuthenticated, isHost, loading: authLoading, user } = useAuth();
+  const { isAuthenticated, isHost, loading: authLoading } = useAuth();
 
   const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("All");
   const [query, setQuery] = useState("");
@@ -87,12 +85,6 @@ export default function HostBookingsPage() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isHost())) {
-      router.push("/login");
-    }
-  }, [authLoading, isAuthenticated, isHost, router]);
 
   useEffect(() => {
     if (authLoading || !isAuthenticated || !isHost()) {
@@ -221,7 +213,7 @@ export default function HostBookingsPage() {
     return () => {
       active = false;
     };
-  }, [authLoading, isAuthenticated, isHost, user?.id]);
+  }, [authLoading, isAuthenticated, isHost]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -307,80 +299,16 @@ export default function HostBookingsPage() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#f6f4f4] text-slate-900">
-      {/* Top Host Nav */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition">
-            <div className="text-slate-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                <path
-                  d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold">StayTeal Host</span>
-          </Link>
-
-          <div className="flex items-center gap-6">
-            <nav className="hidden sm:flex items-center gap-5 text-[11px] font-medium text-slate-600">
-              <Link href="/" className="hover:text-slate-900">
-                Home
-              </Link>
-
-              <Link href="/host" className="hover:text-slate-900">
-                Dashboard
-              </Link>
-
-              <Link
-                href="/host/bookings"
-                className="text-slate-900 font-semibold relative"
-              >
-                Bookings
-                <span className="absolute left-0 -bottom-[6px] h-[2px] w-full bg-[#2C5F5D]" />
-              </Link>
-
-              <Link href="/host/listings" className="hover:text-slate-900">
-                Listings
-              </Link>
-              <Link href="/host/inbox" className="hover:text-slate-900">
-                Inbox
-              </Link>
-            </nav>
-
-            <Link
-              href="/host/add-property/basics"
-              className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-1.5 rounded-md"
-            >
-              Add Listing
-            </Link>
-
-            <div className="w-7 h-7 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
-              🙂
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Page */}
-      <main className="flex-1">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="max-w-6xl mx-auto px-6 py-8">
           {/* Title + Export */}
           <div className="flex items-start justify-between gap-6">
             <div>
               <h1 className="text-2xl font-bold leading-tight">Booking Management</h1>
               <p className="text-[12px] text-slate-500 mt-1">
-                {dataLoading ? "Loading booking activity..." : `You have ${bookings.filter((b) => b.status === "Pending").length} pending requests that need your attention.`}
+                {dataLoading
+                  ? "Loading booking activity..."
+                  : `You have ${bookings.filter((b) => b.status === "Pending").length} pending requests that need your attention.`}
               </p>
             </div>
 
@@ -551,61 +479,6 @@ export default function HostBookingsPage() {
               </div>
             </div>
           </section>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-[#0f4a47] text-white">
-        <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-4 gap-10">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="text-white">
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                  <path
-                    d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold">RealEstate</h3>
-            </div>
-            <p className="text-white/75 text-[12px] leading-relaxed mt-3">
-              Your trusted partner in finding the perfect home. We make real estate simple.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 text-[13px]">Quick Links</h4>
-            <FooterLink>Buy Property</FooterLink>
-            <FooterLink>Sell Property</FooterLink>
-            <FooterLink>Rent Property</FooterLink>
-            <FooterLink>About Us</FooterLink>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 text-[13px]">Property Types</h4>
-            <FooterLink>Houses</FooterLink>
-            <FooterLink>Apartments</FooterLink>
-            <FooterLink>Condos</FooterLink>
-            <FooterLink>Villas</FooterLink>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 text-[13px]">Contact Us</h4>
-            <div className="space-y-2 text-white/75 text-[12px]">
-              <p>(555) 123-4567</p>
-              <p>info@realestate.com</p>
-              <p>123 Main St, City, State</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-white/10">
-          <div className="max-w-6xl mx-auto px-6 py-5 text-center text-[11px] text-white/60">
-            © {new Date().getFullYear()} RealEstate. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
@@ -651,10 +524,3 @@ function StatusPill({ status }: { status: BookingStatus }) {
   );
 }
 
-function FooterLink({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-white/75 hover:text-white transition cursor-pointer text-[12px] mb-2">
-      {children}
-    </div>
-  );
-}
