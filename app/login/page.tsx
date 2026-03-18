@@ -1,185 +1,156 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import AuthLayout from "@/components/auth/AuthLayout";
+import AuthAlert from "@/components/auth/AuthAlert";
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, isAuthenticated } = useAuth();
 
-  const [showPw, setShowPw] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const message =
-    typeof window === "undefined"
-      ? ""
-      : new URLSearchParams(window.location.search).get("message") || "";
 
-  // Redirect if already authenticated
+  const infoMessage = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+
+    return new URLSearchParams(window.location.search).get("message") || "";
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       router.push("/properties");
     }
   }, [isAuthenticated, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const normalizedEmail = email.trim().toLowerCase();
     setError("");
+
+    if (!normalizedEmail) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
     setLoading(true);
 
-    // Validation
-    if (!email.trim()) {
-      setError("Email is required");
-      setLoading(false);
-      return;
-    }
-    if (!password) {
-      setError("Password is required");
-      setLoading(false);
-      return;
-    }
+    try {
+      const result = await login(normalizedEmail, password);
 
-    // Call login from context
-    const res = await login(email, password);
+      if (!result.success) {
+        setError(result.message || "Unable to sign in right now. Please try again.");
+        return;
+      }
 
-    if (res.success) {
-      // Redirect to properties or dashboard
       router.push("/properties");
-    } else {
-      setError(res.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f4f4] flex">
+    <AuthLayout
+      title="Sign In"
+      subtitle="Access your account to continue."
+      sideTitle="Welcome back to StayTeal"
+      sideDescription="Manage your stays, bookings, and properties from one place."
+      footer={
+        <>
+          Don&apos;t have an account?{" "}
+          <Link href="/signup" className="font-semibold text-[#2C5F5D] hover:underline">
+            Create account
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {infoMessage && <AuthAlert variant="info">{infoMessage}</AuthAlert>}
+        {error && <AuthAlert variant="error">{error}</AuthAlert>}
 
-      {/* LEFT BRAND PANEL (Same as signup) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#2C5F5D] text-white flex-col justify-center px-20">
-        <h2 className="text-4xl font-bold leading-tight">
-          Welcome back to StayTeal
-        </h2>
-        <p className="mt-6 text-sm opacity-80 max-w-md">
-          Manage your stays, bookings, and properties effortlessly.
-          Your journey continues here.
-        </p>
-      </div>
-
-      {/* RIGHT AUTH SECTION */}
-      <div className="flex-1 flex items-center justify-center px-6 py-16">
-
-        <div className="w-full max-w-md">
-
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm px-10 py-10">
-
-            <h1 className="text-2xl font-bold text-center">
-              Sign In
-            </h1>
-
-            <p className="text-center text-sm text-slate-500 mt-2">
-              Access your account to continue.
-            </p>
-
-            {message && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <p className="text-blue-700 text-[12px]">{message}</p>
-              </div>
-            )}
-
-            {/* FORM */}
-            <form onSubmit={handleSubmit}>
-              <div className="mt-8 space-y-5">
-
-                {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-red-700 text-[12px] font-semibold">{error}</p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="name@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="mt-2 w-full h-11 px-4 rounded-lg border border-slate-200 focus:border-[#2C5F5D] outline-none"
-                    disabled={loading}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-semibold text-slate-700">
-                      Password
-                    </label>
-                    <Link
-                      href="/forgot-password"
-                      className="text-xs font-semibold text-[#2C5F5D] hover:underline"
-                    >
-                      Forgot?
-                    </Link>
-                  </div>
-
-                  <div className="mt-2 relative">
-                    <input
-                      type={showPw ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full h-11 px-4 pr-12 rounded-lg border border-slate-200 focus:border-[#2C5F5D] outline-none"
-                      disabled={loading}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => setShowPw(!showPw)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
-                      disabled={loading}
-                    >
-                      {showPw ? (
-                        <EyeOff className="w-4 h-4 text-slate-500" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-slate-500" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-12 rounded-lg bg-[#2C5F5D] hover:bg-[#244f4d] disabled:opacity-50 text-white font-semibold transition"
-                >
-                  {loading ? "Signing In..." : "Sign In"}
-                </button>
-
-              </div>
-            </form>
-
-            <p className="mt-8 text-center text-xs text-slate-500">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/signup"
-                className="font-semibold text-[#2C5F5D] hover:underline"
-              >
-                Create account
-              </Link>
-            </p>
-
-          </div>
-
+        <div>
+          <label className="text-xs font-semibold text-slate-700">Email Address</label>
+          <input
+            type="email"
+            placeholder="name@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-4 outline-none focus:border-[#2C5F5D]"
+            disabled={loading}
+            autoComplete="email"
+          />
         </div>
 
-      </div>
-    </div>
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700">Password</label>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-semibold text-[#2C5F5D] hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+
+          <div className="relative mt-2">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-11 w-full rounded-lg border border-slate-200 px-4 pr-12 outline-none focus:border-[#2C5F5D]"
+              disabled={loading}
+              autoComplete="current-password"
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              disabled={loading}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4 text-slate-500" />
+              ) : (
+                <Eye className="h-4 w-4 text-slate-500" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="h-12 w-full rounded-lg bg-[#2C5F5D] font-semibold text-white transition hover:bg-[#244f4d] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "Signing In..." : "Sign In"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }
