@@ -1,28 +1,25 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import api from '@/lib/axios';
-
-type ApiErrorShape = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-};
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { verifyEmail } from "@/lib/auth";
+import AuthLayout from "@/components/auth/AuthLayout";
+import AuthAlert from "@/components/auth/AuthAlert";
 
 export default function VerifyEmailPage() {
-  const token =
-    typeof window === 'undefined'
-      ? ''
-      : new URLSearchParams(window.location.search).get('token') || '';
+  const token = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
-    token ? 'loading' : 'error'
+    return new URLSearchParams(window.location.search).get("token") || "";
+  }, []);
+
+  const [status, setStatus] = useState<"loading" | "success" | "error">(
+    token ? "loading" : "error"
   );
   const [message, setMessage] = useState(
-    token ? 'Verifying your email...' : 'No verification token provided.'
+    token ? "Verifying your email address..." : "No verification token was provided."
   );
 
   useEffect(() => {
@@ -30,73 +27,43 @@ export default function VerifyEmailPage() {
       return;
     }
 
-    const verifyEmail = async () => {
-      try {
-        await api.get('/api/v1/verify-email', { params: { token } });
-        setStatus('success');
-        setMessage('Email verified successfully! You can now log in.');
-      } catch (err: unknown) {
-        setStatus('error');
-        const errorData = err as ApiErrorShape;
-        const error =
-          errorData.response?.data?.message ||
-          'Verification failed. The link may be expired or invalid.';
-        setMessage(error);
+    const runVerification = async () => {
+      const result = await verifyEmail(token);
+
+      if (result.success) {
+        setStatus("success");
+        setMessage("Your email has been verified. You can now sign in.");
+        return;
       }
+
+      setStatus("error");
+      setMessage(result.error || "Verification failed. The link may be expired or invalid.");
     };
 
-    verifyEmail();
+    void runVerification();
   }, [token]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f6f4f4] px-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
-        <div className="text-center">
-          {status === 'loading' && (
-            <>
-              <div className="animate-spin w-12 h-12 border-4 border-slate-200 border-t-[#2C5F5D] rounded-full mx-auto mb-4" />
-              <h1 className="text-2xl font-bold text-slate-900">Verifying Email</h1>
-              <p className="text-slate-600 mt-2">{message}</p>
-            </>
-          )}
-
-          {status === 'success' && (
-            <>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900">Email Verified!</h1>
-              <p className="text-slate-600 mt-2">{message}</p>
-              <Link
-                href="/login"
-                className="mt-6 inline-block px-6 py-2 bg-[#2C5F5D] text-white font-semibold rounded-md hover:bg-[#244f4d] transition"
-              >
-                Go to Login
-              </Link>
-            </>
-          )}
-
-          {status === 'error' && (
-            <>
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900">Verification Failed</h1>
-              <p className="text-slate-600 mt-2">{message}</p>
-              <Link
-                href="/signup"
-                className="mt-6 inline-block px-6 py-2 bg-[#2C5F5D] text-white font-semibold rounded-md hover:bg-[#244f4d] transition"
-              >
-                Try Again
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    <AuthLayout
+      title="Verify Email"
+      subtitle="We are checking your verification link."
+      sideTitle="One quick security step"
+      sideDescription="Email verification keeps your account secure and helps us prevent abuse."
+      footer={
+        status === "success" ? (
+          <Link href="/login" className="font-semibold text-[#2C5F5D] hover:underline">
+            Continue to Login
+          </Link>
+        ) : (
+          <Link href="/signup" className="font-semibold text-[#2C5F5D] hover:underline">
+            Back to Sign Up
+          </Link>
+        )
+      }
+    >
+      {status === "loading" && <AuthAlert variant="info">{message}</AuthAlert>}
+      {status === "success" && <AuthAlert variant="success">{message}</AuthAlert>}
+      {status === "error" && <AuthAlert variant="error">{message}</AuthAlert>}
+    </AuthLayout>
   );
 }
