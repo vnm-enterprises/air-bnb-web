@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { changePassword, updateProfile } from '@/lib/auth';
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
-  
+  const primaryRole = user?.roles?.[0];
+  const roleLabel = primaryRole
+    ? `${primaryRole.charAt(0).toUpperCase()}${primaryRole.slice(1)}`
+    : '';
+
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -35,7 +40,7 @@ export default function ProfilePage() {
     e.preventDefault();
     setError('');
     setSuccess('');
-    
+
     if (!name.trim()) {
       setError('Name is required');
       return;
@@ -43,22 +48,14 @@ export default function ProfilePage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_WORDPRESS_API_URL}api/v1/profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({ name: name.trim() })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
+      const result = await updateProfile({ name: name.trim() });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update profile');
       }
 
-      setSuccess('Profile updated successfully!');
+      setSuccess(result.message || 'Profile updated successfully!');
     } catch (err) {
-      setError('Failed to update profile');
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -101,25 +98,17 @@ export default function ProfilePage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_WORDPRESS_API_URL}api/v1/profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({ password: newPassword })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to change password');
+      const result = await changePassword({ password: newPassword });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to change password');
       }
 
-      setSuccess('Password changed successfully!');
+      setSuccess(result.message || 'Password changed successfully!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError('Failed to change password. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to change password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -221,7 +210,7 @@ export default function ProfilePage() {
                   </label>
                   <input
                     type="text"
-                    value={user?.roles?.[0]?.charAt(0).toUpperCase() + user?.roles?.[0]?.slice(1) || ''}
+                    value={roleLabel}
                     disabled
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-600 cursor-not-allowed capitalize"
                   />
