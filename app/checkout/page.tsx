@@ -2,7 +2,7 @@
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   ShieldCheck,
@@ -14,12 +14,11 @@ import { createBooking } from "@/lib/bookingApi";
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isAuthenticated } = useAuth();
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Get booking details from URL params
   const [bookingData, setBookingData] = useState({
     property_id: 0,
