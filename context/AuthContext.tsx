@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import api from '@/lib/axios';
 
 export type UserRole = 'traveler' | 'host';
@@ -36,12 +36,42 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getApiErrorMessage = useCallback((error: unknown, fallback: string) => {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'response' in error
+    ) {
+      const response = (error as { response?: { status?: number; data?: { message?: string } } }).response;
+      const apiMessage = response?.data?.message;
+
+      if (typeof apiMessage === 'string' && apiMessage.trim().length > 0) {
+        return apiMessage;
+      }
+
+      if (response?.status === 401) {
+        return 'Invalid credentials. Please check your email and password.';
+      }
+    }
+
+    return fallback;
+  }, []);
+
+  const clearStoredAuth = useCallback(() => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_id');
+    delete api.defaults.headers.common['Authorization'];
+    setUser(null);
+  }, []);
 
   // Initialize from storage and validate token
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('access_token');
-      
+
       if (!token) {
         setLoading(false);
         return;
@@ -52,36 +82,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const res = await api.get('/api/v1/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
-        
+
         if (res.data?.id) {
           setUser(res.data);
           localStorage.setItem('user_id', String(res.data.id));
         } else {
-          // Invalid token response
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user_id');
+          clearStoredAuth();
         }
-      } catch (error) {
-        // Token invalid or expired
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user_id');
+      } catch {
+        clearStoredAuth();
       } finally {
         setLoading(false);
       }
     };
 
     initAuth();
-  }, []);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, [clearStoredAuth]);
 
   const login = useCallback(
     async (email: string, password: string) => {
       try {
-        const res = await api.post('/api/v1/login', { email, password });
-        
-        const { access_token, refresh_token, expires_in } = res.data;
-        
+        const res = await api.post('/api/v1/login', {
+          email: email.trim().toLowerCase(),
+          password,
+        });
+
+        const { access_token, refresh_token } = res.data;
+
         if (!access_token) {
           return { success: false, message: 'No access token received' };
         }
@@ -101,18 +134,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem('user_id', String(userRes.data.id));
         }
 
-        // Set token refresh timeout (900 seconds = 15 minutes)
-        if (expires_in) {
-          setTimeout(() => refreshToken(), (expires_in - 60) * 1000);
-        }
-
         return { success: true };
-      } catch (error: any) {
-        const message = error?.response?.data?.message || 'Login failed';
+      } catch (error: unknown) {
+        const message = getApiErrorMessage(
+          error,
+          'Unable to sign in right now. Please try again.'
+        );
         return { success: false, message };
       }
     },
-    []
+    [getApiErrorMessage]
   );
 
   const signup = useCallback(
@@ -129,27 +160,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           success: true,
           message: res.data?.message || 'Signup successful. Please verify your email.'
         };
-      } catch (error: any) {
-        const message = error?.response?.data?.message || 'Signup failed';
+      } catch (error: unknown) {
+        const message = getApiErrorMessage(error, 'Unable to create your account right now.');
         return { success: false, message };
       }
     },
-    []
+    [getApiErrorMessage]
   );
 
   const logout = useCallback(async () => {
     try {
       await api.post('/api/v1/logout');
-    } catch (error) {
+    } catch {
       // Continue with logout even if API call fails
     } finally {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_id');
-      delete api.defaults.headers.common['Authorization'];
-      setUser(null);
+      clearStoredAuth();
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
     }
-  }, []);
+  }, [clearStoredAuth]);
 
   const refreshToken = useCallback(async () => {
     try {
@@ -178,20 +208,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
-      // Schedule next refresh
-      setTimeout(() => refreshToken(), 14 * 60 * 1000); // 14 minutes
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = setTimeout(() => {
+        void refreshToken();
+      }, 14 * 60 * 1000);
 
       return true;
-    } catch (error) {
-      // Refresh failed, clear auth
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_id');
-      delete api.defaults.headers.common['Authorization'];
-      setUser(null);
+    } catch {
+      clearStoredAuth();
       return false;
     }
-  }, [user]);
+  }, [clearStoredAuth, user]);
 
   const hasRole = useCallback(
     (role: UserRole) => {
