@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { resetPassword } from "@/lib/auth";
+export const dynamic = 'force-dynamic';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -17,19 +17,24 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const key = searchParams.get("key") || "";
-  const login = searchParams.get("login") || "";
-
-  useEffect(() => {
-    if (!key || !login) {
-      setError("Invalid reset link. Please request a new password reset.");
-    }
-  }, [key, login]);
+  const params =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search);
+  const key = params?.get("key") || "";
+  const login = params?.get("login") || "";
+  const invalidLink = !key || !login;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    if (invalidLink) {
+      setError("Invalid reset link. Please request a new password reset.");
+      setLoading(false);
+      return;
+    }
 
     // Validation
     if (!password) {
@@ -129,6 +134,14 @@ export default function ResetPasswordPage() {
                       </div>
                     )}
 
+                    {invalidLink && !error && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-red-700 text-[12px] font-semibold">
+                          Invalid reset link. Please request a new password reset.
+                        </p>
+                      </div>
+                    )}
+
                     {/* New Password Input */}
                     <div>
                       <label className="text-xs font-semibold text-slate-700">
@@ -192,7 +205,7 @@ export default function ResetPasswordPage() {
                     {/* Submit Button */}
                     <button
                       type="submit"
-                      disabled={loading || !key || !login}
+                      disabled={loading || invalidLink}
                       className="w-full h-11 bg-[#2C5F5D] text-white rounded-lg font-semibold hover:bg-[#244f4d] disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
                       {loading ? "Resetting..." : "Reset Password"}
