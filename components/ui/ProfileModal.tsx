@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { X } from 'lucide-react';
+import { updateProfile } from '@/lib/auth';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -11,7 +12,7 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, logout } = useAuth();
-  
+
   const [name, setName] = useState(user?.name || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -30,7 +31,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     e.preventDefault();
     setError('');
     setSuccess('');
-    
+
     if (!name.trim()) {
       setError('Name is required');
       return;
@@ -38,22 +39,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_WORDPRESS_API_URL}api/v1/profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({ name: name.trim() })
-      });
+      const result = await updateProfile({ name: name.trim() });
 
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update profile');
       }
 
-      setSuccess('Profile updated successfully!');
+      setSuccess(result.message || 'Profile updated successfully!');
     } catch (err) {
-      setError('Failed to update profile');
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -125,7 +119,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </label>
                 <input
                   type="text"
-                  value={user?.role === 'host' ? 'Host' : 'Traveler'}
+                  value={user?.roles?.includes('host') ? 'Host' : 'Traveler'}
                   disabled
                   className="w-full px-3 py-2 rounded-md border border-slate-200 bg-slate-50 text-slate-600 text-sm capitalize"
                 />
