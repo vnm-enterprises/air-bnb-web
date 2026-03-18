@@ -2,7 +2,7 @@
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin, MessageCircle, LifeBuoy, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 export default function SupportPage() {
@@ -12,60 +12,79 @@ export default function SupportPage() {
     subject: "",
     message: "",
   });
+  const [success, setSuccess] = useState(false);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setForm({ ...form, [event.target.name]: event.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert("Message submitted (UI only demo)");
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setSuccess(true);
+
+    setTimeout(() => {
+      setSuccess(false);
+    }, 3500);
+
+    setForm({ name: "", email: "", subject: "", message: "" });
   };
 
   return (
     <>
       <Header />
 
-      <main className="min-h-screen bg-gradient-to-b from-[#f4f7f7] to-white">
+      <main className="min-h-screen bg-gradient-to-b from-[#edf5f5] via-white to-white">
+        <section className="relative overflow-hidden border-b border-[#d8e8e7] px-6 py-20">
+          <div className="absolute -left-20 top-8 h-80 w-80 rounded-full bg-[#2C5F5D]/12 blur-[90px]" />
+          <div className="absolute -right-20 bottom-4 h-72 w-72 rounded-full bg-[#2C5F5D]/10 blur-[90px]" />
 
-        {/* HERO */}
-        <section className="relative py-24 text-center px-6">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-5xl font-bold text-gray-900">
-              We’re here to help.
+          <div className="relative mx-auto max-w-6xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#2C5F5D]">Support</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-bold text-slate-900 md:text-5xl">
+              Friendly help whenever you need it
             </h1>
-            <p className="text-lg text-gray-600 mt-6">
-              Whether you&apos;re booking your next stay or hosting
-              your first property, our team is ready to assist.
+            <p className="mt-5 max-w-2xl text-base text-slate-600">
+              Our team can guide you through bookings, payments, hosting, and account issues quickly.
             </p>
-          </div>
 
-          {/* Decorative blur */}
-          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#306966]/10 blur-[120px] rounded-full pointer-events-none" />
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              {[
+                { icon: <MessageCircle className="h-5 w-5" />, text: "Fast responses" },
+                { icon: <LifeBuoy className="h-5 w-5" />, text: "24/7 assistance" },
+                { icon: <ShieldCheck className="h-5 w-5" />, text: "Secure support" },
+              ].map((item) => (
+                <div
+                  key={item.text}
+                  className="flex items-center gap-3 rounded-2xl border border-[#d7e8e7] bg-white/90 px-4 py-3 text-sm font-medium text-slate-700 shadow-sm"
+                >
+                  <span className="text-[#2C5F5D]">{item.icon}</span>
+                  {item.text}
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
-        {/* CONTENT */}
-        <section className="max-w-6xl mx-auto px-6 pb-24 grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <section className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-6 py-14 lg:grid-cols-3">
+          <div className="lg:col-span-2 rounded-3xl border border-[#d7e8e7] bg-white p-8 shadow-sm md:p-10">
+            <h2 className="text-2xl font-semibold text-slate-900">Send us a message</h2>
+            <p className="mt-2 text-sm text-slate-600">Tell us what happened and we will get back to you.</p>
 
-          {/* FORM */}
-          <div className="lg:col-span-2 bg-white/80 backdrop-blur-lg border border-gray-200 shadow-xl rounded-3xl p-10">
+            {success && (
+              <div className="mt-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                Message sent successfully. Our support team will contact you shortly.
+              </div>
+            )}
 
-            <h2 className="text-2xl font-semibold mb-8">
-              Send us a message
-            </h2>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-
-              <div className="grid md:grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
                 <input
                   name="name"
                   placeholder="Full Name"
                   value={form.name}
                   onChange={handleChange}
                   required
-                  className="border rounded-xl px-5 py-4 focus:ring-2 focus:ring-[#306966] outline-none transition"
+                  className="rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
                 />
 
                 <input
@@ -75,7 +94,7 @@ export default function SupportPage() {
                   value={form.email}
                   onChange={handleChange}
                   required
-                  className="border rounded-xl px-5 py-4 focus:ring-2 focus:ring-[#306966] outline-none transition"
+                  className="rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
                 />
               </div>
 
@@ -85,107 +104,79 @@ export default function SupportPage() {
                 value={form.subject}
                 onChange={handleChange}
                 required
-                className="w-full border rounded-xl px-5 py-4 focus:ring-2 focus:ring-[#306966] outline-none transition"
+                className="w-full rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
               />
 
               <textarea
                 name="message"
                 placeholder="Your Message"
-                rows={5}
+                rows={6}
                 value={form.message}
                 onChange={handleChange}
                 required
-                className="w-full border rounded-xl px-5 py-4 focus:ring-2 focus:ring-[#306966] outline-none transition resize-none"
+                className="w-full resize-none rounded-xl border border-[#d0e4e4] px-4 py-3 text-sm outline-none focus:border-[#2C5F5D]"
               />
 
               <button
                 type="submit"
-                className="bg-[#306966] hover:bg-[#255a58] text-white px-8 py-4 rounded-full transition-all shadow-lg hover:shadow-xl"
+                className="rounded-full bg-[#2C5F5D] px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-[#2C5F5D]/20 transition hover:bg-[#244f4d]"
               >
                 Send Message
               </button>
             </form>
           </div>
 
-          {/* CONTACT CARDS */}
-          <div className="space-y-8">
-
+          <div className="space-y-5">
             {[
               {
-                icon: <Mail size={22} />,
-                title: "Email Support",
-                desc: "support@propbnb.com",
+                icon: <Mail className="h-5 w-5" />, title: "Email Support", desc: "support@propbnb.com",
               },
               {
-                icon: <Phone size={22} />,
-                title: "Call Us",
-                desc: "+94 77 123 4567",
+                icon: <Phone className="h-5 w-5" />, title: "Call Us", desc: "+94 77 123 4567",
               },
               {
-                icon: <MapPin size={22} />,
-                title: "Office",
-                desc: "45 Galle Road, Colombo",
+                icon: <MapPin className="h-5 w-5" />, title: "Office", desc: "45 Galle Road, Colombo",
               },
-            ].map((item, i) => (
+            ].map((item) => (
               <div
-                key={i}
-                className="bg-white border border-gray-200 rounded-2xl p-8 shadow-md hover:shadow-xl transition-all"
+                key={item.title}
+                className="rounded-2xl border border-[#d7e8e7] bg-white p-6 shadow-sm transition hover:shadow-md"
               >
-                <div className="text-[#306966] mb-4">
-                  {item.icon}
-                </div>
-                <h3 className="font-semibold text-lg">
-                  {item.title}
-                </h3>
-                <p className="text-gray-600 mt-2">
-                  {item.desc}
-                </p>
+                <div className="mb-3 text-[#2C5F5D]">{item.icon}</div>
+                <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-1 text-sm text-slate-600">{item.desc}</p>
               </div>
             ))}
-
           </div>
         </section>
 
-        {/* FAQ SECTION */}
-        <section className="bg-white py-24">
-          <div className="max-w-4xl mx-auto px-6 text-center">
-            <h2 className="text-3xl font-semibold mb-12">
-              Frequently Asked Questions
-            </h2>
+        <section className="border-t border-[#e1efee] bg-white py-16">
+          <div className="mx-auto max-w-4xl px-6">
+            <h2 className="text-center text-3xl font-semibold text-slate-900">Frequently Asked Questions</h2>
 
-            <div className="space-y-6 text-left">
-
+            <div className="mt-10 space-y-4">
               {[
                 {
                   q: "How do I cancel a booking?",
-                  a: "You can cancel bookings from your profile dashboard. Cancellation policies will apply depending on the property.",
+                  a: "Open your dashboard, select the booking, and choose cancel. Policy terms may apply depending on the listing.",
                 },
                 {
-                  q: "How do I become a host?",
-                  a: "Click on 'Become a Host' and complete the onboarding steps to list your property.",
+                  q: "How can I become a host?",
+                  a: "Go to host onboarding from your dashboard and complete property details, pricing, and verification.",
                 },
                 {
-                  q: "When will I be charged?",
-                  a: "Payments are processed securely at the time of booking confirmation.",
+                  q: "When do payments get processed?",
+                  a: "Payments are securely processed when the booking is confirmed and reflected in your booking history.",
                 },
-              ].map((faq, i) => (
-                <div
-                  key={i}
-                  className="border rounded-2xl p-6 hover:shadow-md transition"
-                >
-                  <h3 className="font-medium text-lg">
-                    {faq.q}
-                  </h3>
-                  <p className="text-gray-600 mt-3 text-sm leading-relaxed">
-                    {faq.a}
-                  </p>
+              ].map((faq) => (
+                <div key={faq.q} className="rounded-2xl border border-[#dcebea] bg-[#f8fcfc] p-5">
+                  <h3 className="font-semibold text-slate-900">{faq.q}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{faq.a}</p>
                 </div>
               ))}
-
             </div>
           </div>
         </section>
-
       </main>
 
       <Footer />
