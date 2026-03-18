@@ -84,12 +84,6 @@ export default function HostListingsPage() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!loading && (!isAuthenticated || !isHost())) {
-      router.push("/login");
-    }
-  }, [loading, isAuthenticated, isHost, router]);
-
   const fetchListings = useCallback(async () => {
     if (!user?.id) {
       setListings([]);
@@ -248,86 +242,8 @@ export default function HostListingsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#f6f4f4] text-slate-900">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
-          {/* Brand */}
-          <Link href="/" className="flex items-center gap-2 min-w-[140px] hover:opacity-90 transition">
-            <div className="text-slate-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                <path
-                  d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold">StayManager</span>
-          </Link>
-
-          {/* Search */}
-          <div className="hidden md:flex items-center flex-1 max-w-[520px]">
-            <div className="w-full bg-slate-100 border border-slate-200 rounded-full h-9 flex items-center px-3 gap-2">
-              <Search className="w-4 h-4 text-slate-400" />
-              <input
-                className="w-full bg-transparent outline-none text-[12px] text-slate-600 placeholder:text-slate-400"
-                placeholder="Quick find..."
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Nav */}
-          <div className="flex items-center gap-6">
-            <nav className="hidden sm:flex items-center gap-5 text-[11px] font-semibold text-slate-600">
-              <Link href="/" className="hover:text-slate-900">
-                Home
-              </Link>
-
-              <Link href="/host" className="hover:text-slate-900">
-                Dashboard
-              </Link>
-
-              <Link
-                href="/host/listings"
-                className="text-slate-900 font-semibold relative"
-              >
-                Listings
-                <span className="absolute left-0 -bottom-[6px] h-[2px] w-full bg-[#2C5F5D]" />
-              </Link>
-
-              <Link href="/host/bookings" className="hover:text-slate-900">
-                Bookings
-              </Link>
-            </nav>
-
-            <Link
-              href="/host/add-property/basics"
-              className="bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-1.5 rounded-md"
-            >
-              Add New Listing
-            </Link>
-
-            <div className="w-7 h-7 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
-              🙂
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Page */}
-      <main className="flex-1">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="max-w-6xl mx-auto px-6 py-8">
           {/* Breadcrumb + title + create */}
           <div className="flex items-start justify-between gap-6">
             <div>
@@ -528,61 +444,6 @@ export default function HostListingsPage() {
               </div>
             </div>
           </section>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-[#0f4a47] text-white">
-        <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-4 gap-10">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="text-white">
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                  <path
-                    d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold">RealEstate</h3>
-            </div>
-            <p className="text-white/75 text-[12px] leading-relaxed mt-3">
-              Your trusted partner in finding the perfect home. We make real estate simple.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 text-[13px]">Quick Links</h4>
-            <FooterLink>Buy Property</FooterLink>
-            <FooterLink>Sell Property</FooterLink>
-            <FooterLink>Rent Property</FooterLink>
-            <FooterLink>About Us</FooterLink>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 text-[13px]">Property Types</h4>
-            <FooterLink>Houses</FooterLink>
-            <FooterLink>Apartments</FooterLink>
-            <FooterLink>Condos</FooterLink>
-            <FooterLink>Villas</FooterLink>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 text-[13px]">Contact Us</h4>
-            <div className="space-y-2 text-white/75 text-[12px]">
-              <p>(555) 123-4567</p>
-              <p>info@realestate.com</p>
-              <p>123 Main St, City, State</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-white/10">
-          <div className="max-w-6xl mx-auto px-6 py-5 text-center text-[11px] text-white/60">
-            © {new Date().getFullYear()} RealEstate. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
@@ -629,10 +490,3 @@ function StatusPill({ status }: { status: ListingStatus }) {
   );
 }
 
-function FooterLink({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-white/75 hover:text-white transition cursor-pointer text-[12px] mb-2">
-      {children}
-    </div>
-  );
-}
