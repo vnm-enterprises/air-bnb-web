@@ -32,10 +32,10 @@ export default function AuthLayout({
 
           <div className="relative z-10 flex justify-start">
             <Link
-              href="/dashboard"
+              href="/"
               className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/10 px-4 py-2 text-xs font-semibold backdrop-blur hover:bg-white/20"
             >
-              ← Back to Dashboard
+              ← Back to Home
             </Link>
           </div>
 
@@ -49,10 +49,10 @@ export default function AuthLayout({
           <div className="w-full max-w-md">
             <div className="mb-4 lg:hidden">
               <Link
-                href="/dashboard"
+                href="/"
                 className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                ← Back to Dashboard
+                ← Back to Home
               </Link>
             </div>
 
