@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Breadcrumbs from "@/components/properties/Breadcrumbs";
 import FilterBar from "@/components/properties/FilterBar";
@@ -12,6 +12,8 @@ import {
   type GetPropertiesParams,
   type Property,
 } from "@/lib/propertyApi";
+
+export const dynamic = 'force-dynamic';
 
 const RESULTS_PER_PAGE = 6;
 
@@ -124,7 +126,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function PropertiesPage() {
+function PropertiesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -261,5 +263,13 @@ export default function PropertiesPage() {
 
       <Footer />
     </>
+  );
+}
+
+export default function PropertiesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <PropertiesPageContent />
+    </Suspense>
   );
 }
