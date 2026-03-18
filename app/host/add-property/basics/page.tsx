@@ -20,7 +20,7 @@ const STEPS: Step[] = [
 export default function AddPropertyBasicsPage() {
   const router = useRouter();
   const { isAuthenticated, isHost } = useAuth();
-  
+
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [desc, setDesc] = useState("");
@@ -31,7 +31,7 @@ export default function AddPropertyBasicsPage() {
   const [bathrooms, setBathrooms] = useState("2");
   const [amenities, setAmenities] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -43,8 +43,8 @@ export default function AddPropertyBasicsPage() {
   }, [isAuthenticated, isHost, router]);
 
   const handleAmenityToggle = (amenity: string) => {
-    setAmenities(prev => 
-      prev.includes(amenity) 
+    setAmenities(prev =>
+      prev.includes(amenity)
         ? prev.filter(a => a !== amenity)
         : [...prev, amenity]
     );
@@ -57,7 +57,7 @@ export default function AddPropertyBasicsPage() {
 
   const handleSubmit = async () => {
     setError(null);
-    
+
     // Validation
     if (!title || !desc || !address || !price) {
       setError("Please fill in all required fields");
@@ -66,7 +66,7 @@ export default function AddPropertyBasicsPage() {
 
     try {
       setLoading(true);
-      
+
       const propertyData = {
         title,
         description: desc,
@@ -80,7 +80,7 @@ export default function AddPropertyBasicsPage() {
       };
 
       const response = await createProperty(propertyData);
-      
+
       if (response.success) {
         if (imageFiles.length > 0) {
           try {
@@ -104,7 +104,8 @@ export default function AddPropertyBasicsPage() {
         err !== null &&
         "response" in err &&
         typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ??
+            'Failed to create property. Please try again.'
           : 'Failed to create property. Please try again.';
 
       setError(message);
@@ -437,7 +438,7 @@ export default function AddPropertyBasicsPage() {
             </Link>
 
             <div className="flex items-center gap-3 justify-end">
-              <button 
+              <button
                 onClick={() => router.push('/host')}
                 className="bg-white border border-slate-200 hover:bg-slate-50 transition text-[11px] font-semibold px-4 py-2 rounded-md text-slate-700"
               >
