@@ -148,7 +148,11 @@ export async function checkAvailability(
 export async function getUnavailableDates(id: number): Promise<UnavailableDatesResponse> {
   try {
     const response = await api.get<UnavailableDatesResponse>(
-      `/api/v1/properties/${id}/unavailable-dates`
+      `/api/v1/properties/${id}/unavailable-dates`,
+      {
+        // Prevent stale calendar state when navigating back to a property page.
+        params: { _ts: Date.now() },
+      }
     );
     return response.data;
   } catch (error) {
