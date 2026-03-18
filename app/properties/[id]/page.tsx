@@ -51,6 +51,14 @@ function parseDateOnly(dateString: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function formatDateForApi(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function getApiMessage(error: unknown, fallback: string): string {
   if (
     typeof error === "object" &&
@@ -81,6 +89,7 @@ export default function PropertyPage() {
   const [range, setRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState(1);
   const [disabledDateMatchers, setDisabledDateMatchers] = useState<Matcher[]>([]);
+  const [unavailableDatesRefreshTick, setUnavailableDatesRefreshTick] = useState(0);
   const [reviews, setReviews] = useState<PropertyReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
@@ -196,7 +205,27 @@ export default function PropertyPage() {
     return () => {
       active = false;
     };
-  }, [propertyId]);
+  }, [propertyId, unavailableDatesRefreshTick]);
+
+  useEffect(() => {
+    const triggerUnavailableDatesRefresh = () => {
+      setUnavailableDatesRefreshTick((current) => current + 1);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        triggerUnavailableDatesRefresh();
+      }
+    };
+
+    window.addEventListener("focus", triggerUnavailableDatesRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", triggerUnavailableDatesRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!property) {
@@ -646,8 +675,8 @@ export default function PropertyPage() {
 
                   const bookingData = {
                     property_id: property.id,
-                    check_in: range.from.toISOString().split("T")[0],
-                    check_out: range.to.toISOString().split("T")[0],
+                    check_in: formatDateForApi(range.from),
+                    check_out: formatDateForApi(range.to),
                     guests,
                     propertyTitle: property.title,
                     propertyLocation: property.location,
