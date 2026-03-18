@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { login, isAuthenticated } = useAuth();
-  
+
   const [showPw, setShowPw] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState(searchParams.get("message") || "");
+  const message =
+    typeof window === "undefined"
+      ? ""
+      : new URLSearchParams(window.location.search).get("message") || "";
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -44,14 +46,14 @@ export default function LoginPage() {
 
     // Call login from context
     const res = await login(email, password);
-    
+
     if (res.success) {
       // Redirect to properties or dashboard
       router.push("/properties");
     } else {
       setError(res.message || "Login failed");
     }
-    
+
     setLoading(false);
   };
 
@@ -119,7 +121,7 @@ export default function LoginPage() {
                     <label className="text-xs font-semibold text-slate-700">
                       Password
                     </label>
-                    <Link 
+                    <Link
                       href="/forgot-password"
                       className="text-xs font-semibold text-[#2C5F5D] hover:underline"
                     >
@@ -152,7 +154,7 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <button 
+                <button
                   type="submit"
                   disabled={loading}
                   className="w-full h-12 rounded-lg bg-[#2C5F5D] hover:bg-[#244f4d] disabled:opacity-50 text-white font-semibold transition"
