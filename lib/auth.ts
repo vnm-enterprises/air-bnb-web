@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import api from './axios';
 
 export type LoginResponse = {
@@ -46,7 +47,7 @@ export function clearAuthTokens() {
     localStorage.removeItem('refresh_token');
     try {
       delete api.defaults.headers.common['Authorization'];
-    } catch (e) {}
+    } catch {}
   }
 }
 
@@ -60,10 +61,10 @@ export async function login(
   try {
     const res = await api.post('/api/v1/login', { email, password });
     const data = res.data as LoginResponse;
-    
+
     setAccessToken(data.access_token);
     setRefreshToken(data.refresh_token);
-    
+
     return { success: true, data };
   } catch (err: any) {
     const error = err?.response?.data?.message || 'Login failed';
@@ -168,7 +169,7 @@ export async function refreshAccessToken(): Promise<{ success: boolean; data?: L
 export async function logout(): Promise<void> {
   try {
     await api.post('/api/v1/logout');
-  } catch (err) {
+  } catch {
     // Continue logout even if API fails
   } finally {
     clearAuthTokens();
@@ -193,9 +194,35 @@ export async function getCurrentUser() {
 export async function updateProfile(data: { name?: string }) {
   try {
     const res = await api.post('/api/v1/profile', data);
-    return { success: true, data: res.data };
+    return {
+      success: true,
+      data: res.data,
+      message: res.data?.message || 'Profile updated successfully'
+    };
   } catch (err: any) {
-    return { success: false, error: err?.response?.data?.message };
+    return {
+      success: false,
+      error: err?.response?.data?.message || 'Failed to update profile'
+    };
+  }
+}
+
+/**
+ * Change user password
+ */
+export async function changePassword(data: { password: string }) {
+  try {
+    const res = await api.post('/api/v1/profile', data);
+    return {
+      success: true,
+      data: res.data,
+      message: res.data?.message || 'Password changed successfully'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.response?.data?.message || 'Failed to change password'
+    };
   }
 }
 
