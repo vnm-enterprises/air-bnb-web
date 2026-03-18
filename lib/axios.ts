@@ -7,7 +7,7 @@ declare module 'axios' {
   }
 }
 
-const baseURL = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://example.com/wp-json';
+const baseURL = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'http://localhost:8080/wp-json';
 const usesRestRoute = baseURL.includes('rest_route=');
 const AUTH_FREE_ROUTES = [
   '/api/v1/login',
