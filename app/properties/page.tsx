@@ -129,6 +129,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 function PropertiesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [reloadKey, setReloadKey] = useState(0);
 
   const appliedFilters = useMemo(() => toFilterState(searchParams), [searchParams]);
   const currentPage = appliedFilters.page || 1;
@@ -205,7 +206,7 @@ function PropertiesPageContent() {
     return () => {
       active = false;
     };
-  }, [baseFilters, currentPage]);
+  }, [baseFilters, currentPage, reloadKey]);
 
   const navigateWithFilters = (filters: GetPropertiesParams, page = 1) => {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -233,12 +234,43 @@ function PropertiesPageContent() {
     navigateWithFilters(baseFilters, page);
   };
 
+  const handleRetry = () => {
+    setReloadKey((value) => value + 1);
+  };
+
   return (
     <>
       <Header />
 
-      <main className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <main className="min-h-screen bg-gradient-to-b from-[#eef5f5] via-white to-white">
+        <section className="border-b border-[#d8e8e7] bg-gradient-to-r from-[#2C5F5D] to-[#346f6d] px-6 py-14 text-white">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
+                Discover Your Perfect Stay
+              </p>
+              <h1 className="mt-3 text-4xl font-bold leading-tight md:text-5xl">
+                Curated Properties For Every Journey
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm text-white/85 md:text-base">
+                Browse verified listings, apply smart filters, and book confidently with real-time availability.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-center text-sm">
+              <div className="rounded-xl border border-white/25 bg-white/10 px-4 py-3 backdrop-blur">
+                <p className="text-xs text-white/80">Results</p>
+                <p className="text-lg font-bold">{loading ? "..." : totalResults}</p>
+              </div>
+              <div className="rounded-xl border border-white/25 bg-white/10 px-4 py-3 backdrop-blur">
+                <p className="text-xs text-white/80">Pages</p>
+                <p className="text-lg font-bold">{loading ? "..." : totalPages}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mx-auto max-w-7xl px-6 py-8">
           <Breadcrumbs destination={appliedFilters.location || appliedFilters.search} />
 
           <FilterBar
@@ -256,6 +288,7 @@ function PropertiesPageContent() {
               totalPages={totalPages}
               totalResults={totalResults}
               onPageChange={handlePageChange}
+              onRetry={handleRetry}
             />
           </div>
         </div>
