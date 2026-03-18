@@ -3,12 +3,14 @@
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Clock3 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function SuccessPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const bookingId = searchParams.get("bookingId");
+  const bookingId =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("bookingId");
 
   return (
     <>
