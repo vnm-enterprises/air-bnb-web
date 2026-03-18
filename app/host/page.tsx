@@ -2,19 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { getHostBookings, getBookingById } from "@/lib/bookingApi";
-import { getProperties, getPropertyById } from "@/lib/propertyApi";
-import {
-  Search,
-  Bell,
-  Plus,
-  LayoutGrid,
-  Home,
-  CalendarDays,
-  MoreHorizontal,
-} from "lucide-react";
+import { getHostBookings, getBookingById, type Booking } from "@/lib/bookingApi";
+import { getProperties, getPropertyById, type Property } from "@/lib/propertyApi";
+import { MoreHorizontal, Search } from "lucide-react";
 
 type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
 
@@ -93,8 +84,7 @@ function getOverlappingNights(
 }
 
 export default function HostDashboardPage() {
-  const router = useRouter();
-  const { isAuthenticated, isHost, loading, user, logout } = useAuth();
+  const { isAuthenticated, isHost, loading, user } = useAuth();
   const [q, setQ] = useState("");
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -105,14 +95,6 @@ export default function HostDashboardPage() {
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  // Redirect if not authenticated or not a host
-  useEffect(() => {
-    if (!loading && (!isAuthenticated || !isHost())) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isHost, loading, router]);
 
   useEffect(() => {
     if (loading || !isAuthenticated || !isHost()) {
@@ -127,19 +109,31 @@ export default function HostDashboardPage() {
 
       try {
         const hostBookingsResponse = await getHostBookings({ page: 1, per_page: 20 });
-        const hostBookingsPayload: any = hostBookingsResponse?.data;
+        const hostBookingsPayload: unknown = hostBookingsResponse?.data;
 
         let bookingIds: number[] = [];
-        let bookingItems: any[] = [];
+        let bookingItems: Booking[] = [];
 
         if (Array.isArray(hostBookingsPayload)) {
-          bookingItems = hostBookingsPayload;
-        } else if (Array.isArray(hostBookingsPayload?.bookings)) {
-          const first = hostBookingsPayload.bookings[0];
+          const first = hostBookingsPayload[0];
           if (typeof first === "number") {
-            bookingIds = hostBookingsPayload.bookings;
+            bookingIds = hostBookingsPayload.filter(
+              (id): id is number => typeof id === "number"
+            );
           } else {
-            bookingItems = hostBookingsPayload.bookings;
+            bookingItems = hostBookingsPayload as Booking[];
+          }
+        } else if (
+          typeof hostBookingsPayload === "object" &&
+          hostBookingsPayload !== null &&
+          Array.isArray((hostBookingsPayload as Record<string, unknown>).bookings)
+        ) {
+          const payload = hostBookingsPayload as Record<string, unknown[]>;
+          const first = payload.bookings[0];
+          if (typeof first === "number") {
+            bookingIds = payload.bookings as number[];
+          } else {
+            bookingItems = payload.bookings as Booking[];
           }
         }
 
@@ -155,11 +149,11 @@ export default function HostDashboardPage() {
             })
           );
 
-          bookingItems = detailResponses.filter(Boolean);
+          bookingItems = detailResponses.filter((item): item is Booking => item !== null);
         }
 
         const normalizedBookings = bookingItems
-          .map((booking: any) => ({
+          .map((booking) => ({
             id: Number(booking.id),
             property_id: Number(booking.property_id),
             traveler_id: Number(booking.traveler_id ?? booking.user_id ?? 0),
@@ -188,8 +182,10 @@ export default function HostDashboardPage() {
           })
         );
 
-        const propertyMap = new Map<number, any>(
-          propertyEntries.filter((entry): entry is readonly [number, any] => entry[1] !== null)
+        const propertyMap = new Map<number, Property>(
+          propertyEntries.filter(
+            (entry): entry is readonly [number, Property] => entry[1] !== null
+          )
         );
 
         const rowsFromApi: RecentBooking[] = normalizedBookings.map((booking) => {
@@ -213,7 +209,7 @@ export default function HostDashboardPage() {
 
         const allProperties = [...firstPropertiesPage.data.properties];
         if (propertiesPageCount > 1) {
-          const propertyPageRequests: Promise<any>[] = [];
+          const propertyPageRequests: Promise<{ data: { properties: typeof allProperties } }>[] = [];
           for (let page = 2; page <= propertiesPageCount; page += 1) {
             propertyPageRequests.push(getProperties({ page, per_page: 50 }));
           }
@@ -267,7 +263,7 @@ export default function HostDashboardPage() {
           totalListings: hostProperties.length,
           pendingCount,
         });
-      } catch (error) {
+      } catch {
         if (!active) {
           return;
         }
@@ -297,132 +293,11 @@ export default function HostDashboardPage() {
     );
   }, [q, recentBookings]);
 
-  const handleLogout = async () => {
-    if (loggingOut) {
-      return;
-    }
-
-    setLoggingOut(true);
-
-    try {
-      await logout();
-      router.push("/login");
-    } finally {
-      setLoggingOut(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2C5F5D]" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#f6f4f4] text-slate-900">
-      <div className="min-h-screen flex">
-        {/* Sidebar */}
-        <aside className="w-[240px] bg-white border-r border-slate-200 hidden md:flex flex-col">
-          <div className="px-5 h-14 flex items-center border-b border-slate-200">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition">
-              <div className="w-8 h-8 rounded-md bg-slate-900 text-white flex items-center justify-center">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                  <path
-                    d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </div>
-              <div>
-                <div className="text-[13px] font-bold leading-none">StayHost</div>
-                <div className="text-[10px] text-slate-400 mt-1 leading-none">
-                  Property Manager
-                </div>
-              </div>
-            </Link>
-          </div>
-
-          <div className="p-4">
-            <div className="space-y-1">
-              <SideLink href="/host" active icon={<LayoutGrid className="w-4 h-4" />}>
-                Dashboard
-              </SideLink>
-              <SideLink href="/host/listings" icon={<Home className="w-4 h-4" />}>
-                Listings
-              </SideLink>
-              <SideLink href="/host/bookings" icon={<CalendarDays className="w-4 h-4" />}>
-                Bookings
-              </SideLink>
-            </div>
-          </div>
-
-          <div className="mt-auto p-4">
-            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
-                🙂
-              </div>
-              <div className="min-w-0">
-                <div className="text-[12px] font-semibold truncate">Alex Thompson</div>
-                <div className="text-[10px] text-slate-400">Pro Host</div>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main */}
-        <div className="flex-1">
-          {/* Top bar */}
-          <header className="bg-white border-b border-slate-200">
-            <div className="px-6 h-14 flex items-center justify-between gap-4">
-              <div className="relative w-full max-w-[520px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search bookings or guest names..."
-                  className="w-full bg-slate-100/80 border border-slate-200 rounded-md pl-9 pr-3 py-2 text-[12px] outline-none focus:bg-white focus:border-slate-300"
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  className="w-9 h-9 rounded-md border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center"
-                  aria-label="Notifications"
-                >
-                  <Bell className="w-4 h-4 text-slate-600" />
-                </button>
-
-                <Link
-                  href="/"
-                  className="inline-flex items-center bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-700 text-[11px] font-semibold px-3 py-2 rounded-md"
-                >
-                  Home
-                </Link>
-
-                <button
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="inline-flex items-center bg-white border border-slate-200 hover:bg-slate-50 transition text-slate-700 text-[11px] font-semibold px-3 py-2 rounded-md disabled:opacity-60"
-                >
-                  {loggingOut ? "Logging out..." : "Logout"}
-                </button>
-
-                <Link
-                  href="/host/add-property/basics"
-                  className="inline-flex items-center gap-2 bg-[#2C5F5D] hover:bg-[#244f4d] transition text-white text-[11px] font-semibold px-3 py-2 rounded-md"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add New Listing
-                </Link>
-              </div>
-            </div>
-          </header>
-
-          {/* Content */}
-          <main className="px-6 py-8">
-            <h1 className="text-2xl font-bold">Welcome back, Alex</h1>
+    <div className="px-6 py-8">
+            <h1 className="text-2xl font-bold">
+              Welcome back, {user?.name?.split(" ")[0] ?? "Host"} 👋
+            </h1>
             <p className="text-[12px] text-slate-500 mt-2">
               Here&apos;s a snapshot of your property performance today.
             </p>
@@ -463,12 +338,23 @@ export default function HostDashboardPage() {
             <section className="mt-6 bg-white border border-slate-200 rounded-xl overflow-hidden">
               <div className="px-5 py-4 flex items-center justify-between">
                 <div className="text-[12px] font-bold text-slate-900">Recent Bookings</div>
-                <Link
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="Search bookings..."
+                      className="bg-slate-100/80 border border-slate-200 rounded-md pl-8 pr-3 py-1.5 text-[11px] outline-none focus:bg-white focus:border-slate-300 w-40"
+                    />
+                  </div>
+                  <Link
                   href="/host/bookings"
                   className="text-[11px] text-slate-500 hover:text-slate-700 transition"
                 >
                   View All
                 </Link>
+                </div>
               </div>
 
               <div className="px-5">
@@ -567,39 +453,7 @@ export default function HostDashboardPage() {
                 </div>
               </div>
             </section>
-          </main>
-        </div>
-      </div>
     </div>
-  );
-}
-
-/* Components */
-
-function SideLink({
-  href,
-  icon,
-  children,
-  active,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  active?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={[
-        "flex items-center gap-3 px-3 py-2 rounded-md text-[12px] font-semibold transition",
-        active
-          ? "bg-slate-100 text-slate-900"
-          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-      ].join(" ")}
-    >
-      <span className="text-slate-500">{icon}</span>
-      {children}
-    </Link>
   );
 }
 
