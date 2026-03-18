@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, UserRole } from '@/context/AuthContext';
 
@@ -14,17 +14,30 @@ export function ProtectedRoute({ children, requiredRole, fallback }: ProtectedRo
   const { isAuthenticated, loading, hasRole } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      router.replace('/login');
+      return;
+    }
+
+    if (requiredRole && !hasRole(requiredRole)) {
+      router.replace('/properties');
+    }
+  }, [hasRole, isAuthenticated, loading, requiredRole, router]);
+
   if (loading) {
     return fallback || <LoadingSpinner />;
   }
 
   if (!isAuthenticated) {
-    router.replace('/login');
     return null;
   }
 
   if (requiredRole && !hasRole(requiredRole)) {
-    router.replace('/properties');
     return null;
   }
 
