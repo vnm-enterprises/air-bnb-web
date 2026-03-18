@@ -1,33 +1,46 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/axios';
 
-export default function VerifyEmailPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+type ApiErrorShape = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+};
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Verifying your email...');
+export default function VerifyEmailPage() {
+  const token =
+    typeof window === 'undefined'
+      ? ''
+      : new URLSearchParams(window.location.search).get('token') || '';
+
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
+    token ? 'loading' : 'error'
+  );
+  const [message, setMessage] = useState(
+    token ? 'Verifying your email...' : 'No verification token provided.'
+  );
 
   useEffect(() => {
     if (!token) {
-      setStatus('error');
-      setMessage('No verification token provided.');
       return;
     }
 
     const verifyEmail = async () => {
       try {
-        const res = await api.get('/api/v1/verify-email', { params: { token } });
+        await api.get('/api/v1/verify-email', { params: { token } });
         setStatus('success');
         setMessage('Email verified successfully! You can now log in.');
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus('error');
-        const error = err?.response?.data?.message || 'Verification failed. The link may be expired or invalid.';
+        const errorData = err as ApiErrorShape;
+        const error =
+          errorData.response?.data?.message ||
+          'Verification failed. The link may be expired or invalid.';
         setMessage(error);
       }
     };
