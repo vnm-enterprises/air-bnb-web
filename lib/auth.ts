@@ -14,6 +14,45 @@ export type SignupData = {
   role: 'traveler' | 'host';
 };
 
+function getApiErrorMessage(err: any, fallback: string): string {
+  const apiMessage = err?.response?.data?.message;
+  const status = err?.response?.status;
+
+  if (typeof apiMessage === 'string' && apiMessage.trim().length > 0) {
+    return apiMessage;
+  }
+
+  if (status === 400 || status === 422) {
+    return 'Please review the details and try again.';
+  }
+
+  if (status === 401) {
+    return 'Invalid credentials. Please check your email and password.';
+  }
+
+  if (status === 403) {
+    return 'This action is not allowed for your account.';
+  }
+
+  if (status === 404) {
+    return 'The requested account resource could not be found.';
+  }
+
+  if (status === 409) {
+    return 'This account action conflicts with existing data.';
+  }
+
+  if (status === 429) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+
+  if (status >= 500) {
+    return 'Server error. Please try again in a few minutes.';
+  }
+
+  return fallback;
+}
+
 export function setAccessToken(token: string) {
   if (typeof window !== 'undefined') {
     localStorage.setItem('access_token', token);
@@ -59,7 +98,10 @@ export async function login(
   password: string
 ): Promise<{ success: boolean; data?: LoginResponse; error?: string }> {
   try {
-    const res = await api.post('/api/v1/login', { email, password });
+    const res = await api.post('/api/v1/login', {
+      email: email.trim().toLowerCase(),
+      password,
+    });
     const data = res.data as LoginResponse;
 
     setAccessToken(data.access_token);
@@ -67,7 +109,7 @@ export async function login(
 
     return { success: true, data };
   } catch (err: any) {
-    const error = err?.response?.data?.message || 'Login failed';
+    const error = getApiErrorMessage(err, 'Unable to sign in right now.');
     return { success: false, error };
   }
 }
@@ -79,10 +121,14 @@ export async function signup(
   signupData: SignupData
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const res = await api.post('/api/v1/register', signupData);
+    const res = await api.post('/api/v1/register', {
+      ...signupData,
+      name: signupData.name.trim(),
+      email: signupData.email.trim().toLowerCase(),
+    });
     return { success: true, message: res.data?.message };
   } catch (err: any) {
-    const error = err?.response?.data?.message || 'Signup failed';
+    const error = getApiErrorMessage(err, 'Unable to create your account right now.');
     return { success: false, error };
   }
 }
@@ -95,7 +141,7 @@ export async function verifyEmail(token: string): Promise<{ success: boolean; er
     await api.get('/api/v1/verify-email', { params: { token } });
     return { success: true };
   } catch (err: any) {
-    const error = err?.response?.data?.message || 'Verification failed';
+    const error = getApiErrorMessage(err, 'Verification failed. The link may be expired or invalid.');
     return { success: false, error };
   }
 }
@@ -105,10 +151,10 @@ export async function verifyEmail(token: string): Promise<{ success: boolean; er
  */
 export async function requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await api.post('/api/v1/forgot-password', { email });
+    await api.post('/api/v1/forgot-password', { email: email.trim().toLowerCase() });
     return { success: true };
   } catch (err: any) {
-    const error = err?.response?.data?.message || 'Request failed';
+    const error = getApiErrorMessage(err, 'Unable to send reset instructions right now.');
     return { success: false, error };
   }
 }
@@ -129,7 +175,7 @@ export async function resetPassword(
     });
     return { success: true };
   } catch (err: any) {
-    const error = err?.response?.data?.message || 'Password reset failed';
+    const error = getApiErrorMessage(err, 'Unable to reset password. Please request a new link.');
     return { success: false, error };
   }
 }
@@ -158,7 +204,7 @@ export async function refreshAccessToken(): Promise<{ success: boolean; data?: L
     return { success: true, data };
   } catch (err: any) {
     clearAuthTokens();
-    const error = err?.response?.data?.message || 'Token refresh failed';
+    const error = getApiErrorMessage(err, 'Session refresh failed. Please sign in again.');
     return { success: false, error };
   }
 }
@@ -202,7 +248,7 @@ export async function updateProfile(data: { name?: string }) {
   } catch (err: any) {
     return {
       success: false,
-      error: err?.response?.data?.message || 'Failed to update profile'
+      error: getApiErrorMessage(err, 'Failed to update profile')
     };
   }
 }
@@ -221,7 +267,7 @@ export async function changePassword(data: { password: string }) {
   } catch (err: any) {
     return {
       success: false,
-      error: err?.response?.data?.message || 'Failed to change password'
+      error: getApiErrorMessage(err, 'Failed to change password')
     };
   }
 }
@@ -240,7 +286,7 @@ export async function uploadProfileImage(file: File) {
 
     return { success: true, data: res.data };
   } catch (err: any) {
-    return { success: false, error: err?.response?.data?.message };
+    return { success: false, error: getApiErrorMessage(err, 'Failed to upload profile image') };
   }
 }
 
@@ -253,7 +299,7 @@ export async function deleteAccount(): Promise<{ success: boolean; error?: strin
     clearAuthTokens();
     return { success: true };
   } catch (err: any) {
-    const error = err?.response?.data?.message || 'Account deletion failed';
+    const error = getApiErrorMessage(err, 'Account deletion failed');
     return { success: false, error };
   }
 }
