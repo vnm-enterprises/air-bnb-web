@@ -8,9 +8,9 @@ import { Calendar, MapPin, Clock3, RefreshCw, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { getBookingById, getUserBookings, cancelBooking } from "@/lib/bookingApi";
-import { getPropertyById } from "@/lib/propertyApi";
-import type { Booking } from "@/lib/bookingApi";
+import { getBookingById, getUserBookings, cancelBooking } from "@/infrastructure/services/booking-service";
+import { getPropertyById } from "@/infrastructure/services/property-service";
+import type { Booking } from "@/infrastructure/services/booking-service";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1517457373614-b7152f800908?auto=format&fit=crop&w=1200&q=80";
