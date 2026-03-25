@@ -7,8 +7,8 @@ import { Heart, Star, Share2, Trash2 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/context/AuthContext";
-import type { Property } from "@/lib/propertyApi";
-import { getMyWishlist, removeFromWishlist } from "@/lib/wishlistApi";
+import type { Property } from "@/infrastructure/services/property-service";
+import { getMyWishlist, removeFromWishlist } from "@/infrastructure/services/wishlist-service";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80";
