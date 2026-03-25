@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { getHostBookings, getBookingById, type Booking } from "@/lib/bookingApi";
-import { getProperties, getPropertyById, type Property } from "@/lib/propertyApi";
+import { getHostBookings, getBookingById, type Booking } from "@/infrastructure/services/booking-service";
+import { getProperties, getPropertyById, type Property } from "@/infrastructure/services/property-service";
 import { MoreHorizontal, Search } from "lucide-react";
 
 type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
