@@ -18,7 +18,7 @@ import {
   getProperties,
   Property,
   updateProperty,
-} from "@/lib/propertyApi";
+} from "@/infrastructure/services/property-service";
 
 type ListingStatus = "Active" | "Pending" | "Hidden";
 
