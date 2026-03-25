@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { X } from 'lucide-react';
-import { updateProfile } from '@/lib/auth';
+import { updateProfile } from '@/infrastructure/services/auth-service';
 
 interface ProfileModalProps {
   isOpen: boolean;
