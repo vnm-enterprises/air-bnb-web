@@ -7,7 +7,7 @@ declare module 'axios' {
   }
 }
 
-const baseURL = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'http://localhost:8080/wp-json';
+const baseURL = 'http://localhost:8080/wp-json' //process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'http://localhost:8080/wp-json';
 const usesRestRoute = baseURL.includes('rest_route=');
 const AUTH_FREE_ROUTES = [
   '/api/v1/login',
@@ -141,6 +141,11 @@ async function refreshAccessToken(): Promise<string | null> {
 
 api.interceptors.request.use(
   (config) => {
+
+     if (config.headers) {
+      config.headers['ngrok-skip-browser-warning'] = 'true';
+    }
+
     if (usesRestRoute && typeof config.url === 'string') {
       config.url = config.url.replace(/^\//, '');
     }
@@ -154,6 +159,7 @@ api.interceptors.request.use(
         delete headers['content-type'];
       }
     }
+
 
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token');
