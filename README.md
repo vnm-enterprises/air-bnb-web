@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AirBnB Web Frontend
 
-## Getting Started
+Next.js 16 frontend for the AirBnB-like booking product, organized with a clean architecture approach for long-term maintainability.
 
-First, run the development server:
+## Run Locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev -p 4000
-# or
-bun dev
+pnpm install
+pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Default dev URL: http://localhost:4000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Architecture
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The codebase is organized into explicit layers:
 
-## Learn More
+1. UI Layer
+	- `app/`: route entrypoints (render/layout composition only)
+	- `components/features/`: feature-level view components
+	- `components/common/`: shared, non-domain specific building blocks
+	- `components/ui/`: reusable UI primitives (shadcn-style)
 
-To learn more about Next.js, take a look at the following resources:
+2. Application Layer
+	- `application/hooks/`: route/feature orchestration logic
+	- `application/controllers/`: frontend business rules, normalization, validation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Domain Layer
+	- `domain/models/`: domain-facing model and response types
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4. Infrastructure Layer
+	- `infrastructure/http/`: API client adapter
+	- `infrastructure/services/`: service abstractions for external APIs
 
-## Deploy on Vercel
+## Dependency Direction
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Allowed direction:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- UI -> Application -> Domain
+- Application -> Infrastructure
+- Infrastructure -> external API client
+
+Avoid:
+
+- UI importing `lib/*` API modules directly
+- Pages containing API calls or heavy orchestration logic
+- Cross-feature imports from route files
+
+## Service Layer Rules
+
+- All network access belongs in `infrastructure/services/*`.
+- UI and hooks consume services, never `fetch`/`axios` directly.
+- Keep service methods reusable and stateless.
+
+## Component Library Conventions
+
+- Prefer primitives from `components/ui/*` (`button`, `input`, `textarea`, `alert`, `card`).
+- Feature screens should compose primitives and common components.
+- Keep feature components presentation-focused; move orchestration to application hooks.
+
+## Scripts
+
+```bash
+pnpm dev
+pnpm build
+pnpm start
+pnpm lint
+```
