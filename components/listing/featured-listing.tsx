@@ -4,8 +4,8 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Heart, ChevronRight } from "lucide-react";
-import { getProperties } from "@/lib/propertyApi";
-import type { Property } from "@/lib/propertyApi";
+import { getProperties } from "@/infrastructure/services/property-service";
+import type { Property } from "@/infrastructure/services/property-service";
 import { useWishlist } from "@/hooks/useWishlist";
 
 const FALLBACK_IMAGE =
