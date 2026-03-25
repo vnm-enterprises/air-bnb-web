@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import api from '@/lib/axios';
+import api from '@/infrastructure/http/api-client';
 
 export type UserRole = 'traveler' | 'host';
 
