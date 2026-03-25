@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Search, FileDown, FileText, Pencil } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { confirmBooking, getBookingById, getHostBookings } from "@/lib/bookingApi";
-import { getPropertyById } from "@/lib/propertyApi";
-import { markPaymentComplete } from "@/lib/paymentApi";
+import { confirmBooking, getBookingById, getHostBookings } from "@/infrastructure/services/booking-service";
+import { getPropertyById } from "@/infrastructure/services/property-service";
+import { markPaymentComplete } from "@/infrastructure/services/payment-service";
 
 type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
 
