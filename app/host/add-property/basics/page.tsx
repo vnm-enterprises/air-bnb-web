@@ -5,7 +5,7 @@ import { useState, useEffect, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { createProperty, uploadPropertyImages } from "@/lib/propertyApi";
+import { createProperty, uploadPropertyImages } from "@/infrastructure/services/property-service";
 
 type Step = { n: number; label: string };
 
