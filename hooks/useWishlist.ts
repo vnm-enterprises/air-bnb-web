@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { getMyWishlist, addToWishlist, removeFromWishlist } from "@/lib/wishlistApi";
+import { getMyWishlist, addToWishlist, removeFromWishlist } from "@/infrastructure/services/wishlist-service";
 
 export function useWishlist() {
   const { isAuthenticated, isTraveler } = useAuth();
