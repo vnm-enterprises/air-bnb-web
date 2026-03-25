@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Star, Heart, RefreshCw } from "lucide-react";
-import type { Property } from "@/lib/propertyApi";
+import type { Property } from "@/infrastructure/services/property-service";
 import { useWishlist } from "@/hooks/useWishlist";
 
 interface ResultsListProps {
