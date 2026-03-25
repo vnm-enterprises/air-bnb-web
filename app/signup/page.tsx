@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { signup } from "@/lib/auth";
+import { signup } from "@/infrastructure/services/auth-service";
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthAlert from "@/components/auth/AuthAlert";
 
