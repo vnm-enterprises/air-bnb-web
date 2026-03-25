@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import type { GetPropertiesParams } from "@/lib/propertyApi";
+import type { GetPropertiesParams } from "@/infrastructure/services/property-service";
 
 function toFilterState(filters: GetPropertiesParams): GetPropertiesParams {
   return {
