@@ -7,9 +7,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Calendar, MapPin, Users, Receipt, CreditCard, Star } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { getBookingById, cancelBooking } from "@/lib/bookingApi";
-import { getPropertyById, Property } from "@/lib/propertyApi";
-import { createReview } from "@/lib/reviewApi";
+import { getBookingById, cancelBooking } from "@/infrastructure/services/booking-service";
+import { getPropertyById, Property } from "@/infrastructure/services/property-service";
+import { createReview } from "@/infrastructure/services/review-service";
 
 type BookingDetails = {
   id: number;
