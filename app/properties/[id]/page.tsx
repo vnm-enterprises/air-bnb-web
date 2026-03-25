@@ -8,8 +8,8 @@ import { useParams, useRouter } from "next/navigation";
 import { DayPicker, DateRange, Matcher } from "react-day-picker";
 import { differenceInDays } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
-import { getPropertyById, getUnavailableDates, Property } from "@/lib/propertyApi";
-import { getPropertyReviews, replyToReview, type PropertyReview } from "@/lib/reviewApi";
+import { getPropertyById, getUnavailableDates, Property } from "@/infrastructure/services/property-service";
+import { getPropertyReviews, replyToReview, type PropertyReview } from "@/infrastructure/services/review-service";
 import { useWishlist } from "@/hooks/useWishlist";
 import "react-day-picker/dist/style.css";
 
