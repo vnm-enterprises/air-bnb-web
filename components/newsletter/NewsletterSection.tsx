@@ -2,7 +2,7 @@
 
 import { Mail, CheckCircle, X, AlertCircle } from "lucide-react";
 import { useState } from "react";
-import api from "@/lib/axios";
+import api from "@/infrastructure/http/api-client";
 
 type ApiErrorShape = {
   response?: {
