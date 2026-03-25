@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import { changePassword, updateProfile } from '@/lib/auth';
+import { changePassword, updateProfile } from '@/infrastructure/services/auth-service';
 
 export default function ProfilePage() {
   const router = useRouter();
