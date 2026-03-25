@@ -11,7 +11,7 @@ import {
   getProperties,
   type GetPropertiesParams,
   type Property,
-} from "@/lib/propertyApi";
+} from "@/infrastructure/services/property-service";
 
 export const dynamic = 'force-dynamic';
 
