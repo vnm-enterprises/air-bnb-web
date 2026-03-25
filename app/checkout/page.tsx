@@ -10,7 +10,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { createBooking } from "@/lib/bookingApi";
+import { createBooking } from "@/infrastructure/services/booking-service";
 
 export default function CheckoutPage() {
   const router = useRouter();
