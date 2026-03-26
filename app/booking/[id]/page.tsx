@@ -8,9 +8,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Calendar, MapPin, Users, Receipt, CreditCard, Star } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { getBookingById, cancelBooking } from "@/infrastructure/services/booking-service";
+import { getBookingById, cancelBooking, completeBooking } from "@/infrastructure/services/booking-service";
 import { getPropertyById, Property } from "@/infrastructure/services/property-service";
 import { createReview } from "@/infrastructure/services/review-service";
+import { resolveImageUrl } from "@/lib/image";
 
 type BookingDetails = {
   id: number;
@@ -123,6 +124,8 @@ export default function BookingDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
@@ -312,6 +315,28 @@ export default function BookingDetailsPage() {
     }
   };
 
+  const handleCompleteBooking = async () => {
+    if (!booking) return;
+
+    const confirmed = window.confirm("Mark this booking as completed? You can submit your review after this.");
+    if (!confirmed) return;
+
+    setCompleting(true);
+    setCompleteError(null);
+
+    try {
+      await completeBooking(booking.id);
+      setBooking({
+        ...booking,
+        status: "completed",
+      });
+    } catch (err: unknown) {
+      setCompleteError(getApiMessage(err, "Failed to complete booking."));
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   if (authLoading || (!isAuthenticated && !error)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -367,8 +392,16 @@ export default function BookingDetailsPage() {
     property?.images && property.images.length > 0 && typeof property.images[0] === "string"
       ? property.images[0]
       : "https://images.unsplash.com/photo-1517457373614-b7152f800908?auto=format&fit=crop&w=900&q=80";
+  const safePropertyId = Number.isFinite(Number(booking.property_id)) && Number(booking.property_id) > 0
+    ? Number(booking.property_id)
+    : Number(property?.id || 0);
   const status = normalizeStatus(booking.status);
   const canReview = status === "completed";
+  const checkoutDate = new Date(booking.check_out);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  checkoutDate.setHours(0, 0, 0, 0);
+  const canComplete = status === "confirmed" && !Number.isNaN(checkoutDate.getTime()) && checkoutDate <= today;
 
   return (
     <>
@@ -401,7 +434,11 @@ export default function BookingDetailsPage() {
           <section className="bg-white border rounded-2xl shadow-sm overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-3">
               <div className="md:col-span-1 h-64 md:h-full">
-                <img src={propertyImage} alt={property?.title || "Property"} className="w-full h-full object-cover" />
+                <img
+                  src={resolveImageUrl(propertyImage, "https://images.unsplash.com/photo-1517457373614-b7152f800908?auto=format&fit=crop&w=900&q=80")}
+                  alt={property?.title || "Property"}
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               <div className="md:col-span-2 p-6 space-y-5">
@@ -447,16 +484,37 @@ export default function BookingDetailsPage() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Nights</p>
+                    <p className="mt-1 text-base font-semibold text-slate-900">{nights}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Guests</p>
+                    <p className="mt-1 text-base font-semibold text-slate-900">{booking.guest_count}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Total</p>
+                    <p className="mt-1 text-base font-semibold text-slate-900">${booking.total_price.toFixed(2)}</p>
+                  </div>
+                </div>
+
                 <div className="pt-2 flex flex-wrap gap-3">
-                  <Link
-                    href={`/properties/${booking.property_id}`}
-                    className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
-                  >
-                    View Property
-                  </Link>
+                  {safePropertyId > 0 ? (
+                    <Link
+                      href={`/properties/${safePropertyId}`}
+                      className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
+                    >
+                      View Property
+                    </Link>
+                  ) : (
+                    <span className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-400 bg-slate-50">
+                      Property unavailable
+                    </span>
+                  )}
 
                   <Link
-                    href="/checkout/success"
+                    href={`/checkout/success?bookingId=${booking.id}`}
                     className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
                   >
                     Payment Status
@@ -471,11 +529,27 @@ export default function BookingDetailsPage() {
                       {canceling ? 'Cancelling...' : 'Cancel Booking'}
                     </button>
                   )}
+
+                  {canComplete && (
+                    <button
+                      onClick={handleCompleteBooking}
+                      disabled={completing}
+                      className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {completing ? "Completing..." : "Mark as Completed"}
+                    </button>
+                  )}
                 </div>
 
                 {cancelError && (
                   <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
                     {cancelError}
+                  </div>
+                )}
+
+                {completeError && (
+                  <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                    {completeError}
                   </div>
                 )}
               </div>
