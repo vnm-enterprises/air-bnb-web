@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -22,6 +23,21 @@ type BookingDetails = {
   price_snapshot: number;
   status: string;
   payment_status: string;
+};
+
+type BookingApiData = {
+  id?: number | string;
+  property_id?: number | string;
+  traveler_id?: number | string;
+  user_id?: number | string;
+  check_in?: string;
+  check_out?: string;
+  guest_count?: number | string;
+  guests?: number | string;
+  total_price?: number | string;
+  price_snapshot?: number | string;
+  status?: string;
+  payment_status?: string;
 };
 
 function normalizeStatus(status: string): string {
@@ -146,7 +162,7 @@ export default function BookingDetailsPage() {
 
       try {
         const bookingResponse = await getBookingById(bookingId);
-        const raw: any = bookingResponse?.data;
+        const raw = (bookingResponse?.data || {}) as BookingApiData;
 
         const normalizedBooking: BookingDetails = {
           id: Number(raw?.id || bookingId),
@@ -182,12 +198,12 @@ export default function BookingDetailsPage() {
         setReviewFeedback(null);
         setReviewComment("");
         setReviewRating(5);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!active) {
           return;
         }
 
-        setError(err?.response?.data?.message || "Failed to load booking details");
+        setError(getApiMessage(err, "Failed to load booking details"));
       } finally {
         if (active) {
           setLoading(false);
@@ -232,9 +248,8 @@ export default function BookingDetailsPage() {
 
       // Optionally redirect to dashboard
       // router.push('/dashboard');
-    } catch (err: any) {
-      const apiMessage = err?.response?.data?.message;
-      setCancelError(apiMessage || 'Failed to cancel booking');
+    } catch (err: unknown) {
+      setCancelError(getApiMessage(err, "Failed to cancel booking"));
     } finally {
       setCanceling(false);
     }
