@@ -3,13 +3,19 @@
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Star, Share2, Heart } from "lucide-react";
+import { Star, Share2, Heart, Mail, Phone, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DayPicker, DateRange, Matcher } from "react-day-picker";
 import { differenceInDays } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
-import { getPropertyById, getUnavailableDates, Property } from "@/infrastructure/services/property-service";
+import {
+  getPropertyById,
+  getPropertyHostContact,
+  getUnavailableDates,
+  Property,
+  PropertyHostContact,
+} from "@/infrastructure/services/property-service";
 import { getPropertyReviews, replyToReview, type PropertyReview } from "@/infrastructure/services/review-service";
 import { useWishlist } from "@/hooks/useWishlist";
 import { resolveImageUrl } from "@/lib/image";
@@ -94,6 +100,11 @@ export default function PropertyPage() {
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const [range, setRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState(1);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [hostContact, setHostContact] = useState<PropertyHostContact | null>(null);
+  const [hostContactError, setHostContactError] = useState<string | null>(null);
+  const [hostContactLoading, setHostContactLoading] = useState(false);
+  const [hostContactOpen, setHostContactOpen] = useState(false);
   const [disabledDateMatchers, setDisabledDateMatchers] = useState<Matcher[]>([]);
   const [unavailableDatesRefreshTick, setUnavailableDatesRefreshTick] = useState(0);
   const [reviews, setReviews] = useState<PropertyReview[]>([]);
@@ -353,6 +364,30 @@ export default function PropertyPage() {
       setReviewsError(getApiMessage(err, "Failed to add host reply"));
     } finally {
       setReplyingReviewId(null);
+    }
+  };
+
+  const openHostContactModal = async () => {
+    if (!property) {
+      return;
+    }
+
+    setHostContactOpen(true);
+    setHostContactError(null);
+
+    if (hostContact || hostContactLoading) {
+      return;
+    }
+
+    setHostContactLoading(true);
+
+    try {
+      const response = await getPropertyHostContact(property.id);
+      setHostContact(response.data);
+    } catch (err: unknown) {
+      setHostContactError(getApiMessage(err, "Unable to load host contact details right now."));
+    } finally {
+      setHostContactLoading(false);
     }
   };
 
@@ -629,7 +664,10 @@ export default function PropertyPage() {
                 </div>
               </div>
 
-              <button className="mt-8 bg-black text-white px-6 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition">
+              <button
+                onClick={() => void openHostContactModal()}
+                className="mt-8 bg-black text-white px-6 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
+              >
                 Contact Host
               </button>
             </div>
@@ -683,8 +721,20 @@ export default function PropertyPage() {
                     return;
                   }
 
+                  setBookingError(null);
+
                   if (!range?.from || !range?.to) {
-                    window.alert("Please select check-in and check-out dates");
+                    setBookingError("Please select both check-in and check-out dates.");
+                    return;
+                  }
+
+                  if (range.from < earliestBookableDate) {
+                    setBookingError("Check-in date cannot be in the past.");
+                    return;
+                  }
+
+                  if (nights <= 0) {
+                    setBookingError("Please select at least one night for your stay.");
                     return;
                   }
 
@@ -710,6 +760,10 @@ export default function PropertyPage() {
               >
                 {isAuthenticated ? "Reserve Now" : "Login to Book"}
               </button>
+
+              {bookingError && (
+                <p className="mt-3 text-xs text-red-600">{bookingError}</p>
+              )}
 
               {nights > 0 && (
                 <div className="mt-6 text-sm space-y-2">
@@ -764,6 +818,74 @@ export default function PropertyPage() {
             </div>
           )}
         </div>
+
+        {hostContactOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-slate-900/55"
+              onClick={() => setHostContactOpen(false)}
+            />
+
+            <div className="fixed inset-0 z-50 grid place-items-center p-4">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-slate-500">Contact Host</p>
+                    <h4 className="mt-1 text-lg font-semibold text-slate-900">{hostName}</h4>
+                  </div>
+                  <button
+                    onClick={() => setHostContactOpen(false)}
+                    className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
+                    aria-label="Close host contact popup"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {hostContactLoading ? (
+                  <div className="mt-5 text-sm text-slate-500">Loading host contact details...</div>
+                ) : hostContactError ? (
+                  <div className="mt-5 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                    {hostContactError}
+                  </div>
+                ) : hostContact ? (
+                  <div className="mt-5 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Name</p>
+                      <p className="text-sm font-medium text-slate-900">{hostContact.host_name}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Email</p>
+                      <a
+                        href={`mailto:${hostContact.host_email}`}
+                        className="mt-1 inline-flex items-center gap-2 text-sm font-medium text-[#2C5F5D] hover:underline"
+                      >
+                        <Mail size={14} />
+                        {hostContact.host_email}
+                      </a>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Phone</p>
+                      {hostContact.host_phone ? (
+                        <a
+                          href={`tel:${hostContact.host_phone}`}
+                          className="mt-1 inline-flex items-center gap-2 text-sm font-medium text-[#2C5F5D] hover:underline"
+                        >
+                          <Phone size={14} />
+                          {hostContact.host_phone}
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-600">Phone number is not available.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
       </main>
 
       <Footer />

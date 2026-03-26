@@ -13,7 +13,7 @@ import {
 import { authService } from "@/infrastructure/services";
 import { tokenStorage } from "@/infrastructure/security/token-storage";
 
-export type UserRole = "traveler" | "host";
+export type UserRole = "traveler" | "host" | "administrator";
 
 export interface User {
   id: number;
@@ -32,13 +32,14 @@ export interface AuthContextType {
     name: string;
     email: string;
     password: string;
-    role: UserRole;
+    role: "traveler" | "host";
   }) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
   hasRole: (role: UserRole) => boolean;
   isHost: () => boolean;
   isTraveler: () => boolean;
+  isAdmin: () => boolean;
 }
 
 type AuthStatus = "initializing" | "authenticated" | "anonymous";
@@ -50,7 +51,7 @@ function normalizeRoles(value: unknown): UserRole[] {
     return [];
   }
 
-  return value.filter((item): item is UserRole => item === "host" || item === "traveler");
+  return value.filter((item): item is UserRole => item === "host" || item === "traveler" || item === "administrator");
 }
 
 function normalizeUser(payload: unknown): User | null {
@@ -217,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, [clearSession, fetchAndStoreCurrentUser]);
 
-  const signup = useCallback(async (data: { name: string; email: string; password: string; role: UserRole }) => {
+  const signup = useCallback(async (data: { name: string; email: string; password: string; role: "traveler" | "host" }) => {
     const result = await authService.signup(data);
     return {
       success: result.success,
@@ -238,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = useCallback((role: UserRole) => user?.roles.includes(role) ?? false, [user]);
   const isHost = useCallback(() => hasRole("host"), [hasRole]);
   const isTraveler = useCallback(() => hasRole("traveler"), [hasRole]);
+  const isAdmin = useCallback(() => hasRole("administrator"), [hasRole]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,
@@ -250,7 +252,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasRole,
     isHost,
     isTraveler,
-  }), [hasRole, isHost, isTraveler, login, logout, refreshTokenInternal, signup, status, user]);
+    isAdmin,
+  }), [hasRole, isAdmin, isHost, isTraveler, login, logout, refreshTokenInternal, signup, status, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

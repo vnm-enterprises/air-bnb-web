@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Search, FileDown, FileText, Pencil } from "lucide-react";
+import { Search, FileDown, FileText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { confirmBooking } from "@/infrastructure/services/booking-service";
+import { confirmBooking, completeBooking } from "@/infrastructure/services/booking-service";
 import { markPaymentComplete } from "@/infrastructure/services/payment-service";
 import { fetchHostBookingsDetailed, fetchPropertyMap } from "@/infrastructure/services/host-dashboard-service";
 
-type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
+type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed";
 
 type BookingRow = {
   id: string;
@@ -19,6 +19,7 @@ type BookingRow = {
   nights: string;
   total: string;
   status: BookingStatus;
+  checkOut: string;
   rawTotal: number;
   rawGuests: number;
   paymentStatus?: string;
@@ -31,6 +32,7 @@ type PropertySummary = {
 const TABS: { label: string; value: "All" | BookingStatus }[] = [
   { label: "All Bookings", value: "All" },
   { label: "Confirmed", value: "Confirmed" },
+  { label: "Completed", value: "Completed" },
   { label: "Pending", value: "Pending" },
   { label: "Cancelled", value: "Cancelled" },
 ];
@@ -38,7 +40,11 @@ const TABS: { label: string; value: "All" | BookingStatus }[] = [
 function toStatus(status: string): BookingStatus {
   const normalized = status.toLowerCase();
 
-  if (["approved", "confirmed", "completed"].includes(normalized)) {
+  if (normalized === "completed") {
+    return "Completed";
+  }
+
+  if (["approved", "confirmed"].includes(normalized)) {
     return "Confirmed";
   }
 
@@ -100,6 +106,7 @@ export default function HostBookingsPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -144,6 +151,7 @@ export default function HostBookingsPage() {
             nights: calculateNightsLabel(booking.checkIn, booking.checkOut),
             total: `$${booking.totalPrice.toFixed(2)}`,
             status: toStatus(booking.status),
+            checkOut: booking.checkOut,
             rawTotal: booking.totalPrice,
             rawGuests: booking.guestCount,
             paymentStatus: booking.paymentStatus,
@@ -263,6 +271,47 @@ export default function HostBookingsPage() {
       }
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  const canMarkCompleted = (booking: BookingRow): boolean => {
+    if (booking.status !== "Confirmed") {
+      return false;
+    }
+
+    const checkOut = new Date(booking.checkOut);
+    if (Number.isNaN(checkOut.getTime())) {
+      return false;
+    }
+
+    checkOut.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return checkOut <= today;
+  };
+
+  const handleCompleteBooking = async (bookingId: string) => {
+    setDataError(null);
+    setCompletingId(bookingId);
+
+    try {
+      await completeBooking(Number(bookingId));
+      setBookings((current) =>
+        current.map((row) =>
+          row.id === bookingId
+            ? {
+                ...row,
+                status: "Completed",
+              }
+            : row
+        )
+      );
+    } catch (error: unknown) {
+      setDataError(getApiMessage(error, "Failed to mark booking as completed"));
+    } finally {
+      setCompletingId(null);
     }
   };
 
@@ -418,6 +467,20 @@ export default function HostBookingsPage() {
                                   {confirmingId === b.id ? "Confirming..." : "Confirm"}
                                 </button>
                               )}
+                              {b.status === "Confirmed" && (
+                                <button
+                                  onClick={() => handleCompleteBooking(b.id)}
+                                  disabled={completingId === b.id || !canMarkCompleted(b)}
+                                  title={!canMarkCompleted(b) ? "Available after checkout date" : "Mark booking as completed"}
+                                  className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-60"
+                                >
+                                  {completingId === b.id
+                                    ? "Completing..."
+                                    : !canMarkCompleted(b)
+                                      ? "Complete (after checkout)"
+                                      : "Complete"}
+                                </button>
+                              )}
                               <Link
                                 href={`/booking/${b.id}`}
                                 className="p-1.5 rounded-md hover:bg-slate-100 transition"
@@ -425,12 +488,6 @@ export default function HostBookingsPage() {
                               >
                                 <FileText className="w-4 h-4 text-[#2C5F5D]" />
                               </Link>
-                              <button
-                                className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                                aria-label="Edit booking"
-                              >
-                                <Pencil className="w-4 h-4 text-slate-500" />
-                              </button>
                             </div>
                           </td>
                         </tr>
@@ -471,7 +528,9 @@ function StatCard({
 
 function StatusPill({ status }: { status: BookingStatus }) {
   const styles =
-    status === "Confirmed"
+    status === "Completed"
+      ? "bg-emerald-600 text-white"
+      : status === "Confirmed"
       ? "bg-[#2C5F5D] text-white"
       : status === "Pending"
       ? "bg-slate-100 text-slate-600"

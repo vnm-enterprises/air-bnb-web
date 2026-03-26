@@ -1,5 +1,6 @@
 import {
   cancelBooking,
+  completeBooking,
   confirmBooking,
   createBooking,
   deleteBooking,
@@ -23,6 +24,7 @@ export {
   createBooking,
   updateBooking,
   confirmBooking,
+  completeBooking,
   cancelBooking,
   deleteBooking,
 };
@@ -43,6 +45,7 @@ export const bookingService = {
   createBooking,
   updateBooking,
   confirmBooking,
+  completeBooking,
   cancelBooking,
   deleteBooking,
 };

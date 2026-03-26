@@ -11,6 +11,7 @@ export interface Booking {
   guests: number;
   guest_count?: number;
   total_price: number;
+  price_snapshot?: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   payment_status?: string;
   created_at: string;
@@ -173,6 +174,19 @@ export async function confirmBooking(id: number): Promise<BookingResponse> {
     return response.data;
   } catch (error) {
     console.error(`Error confirming booking ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Complete a booking (traveler, after checkout)
+ */
+export async function completeBooking(id: number): Promise<BookingResponse> {
+  try {
+    const response = await api.post<BookingResponse>(`/api/v1/bookings/${id}/completed`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error completing booking ${id}:`, error);
     throw error;
   }
 }

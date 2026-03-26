@@ -2,6 +2,8 @@ import {
   checkAvailability,
   createProperty,
   deleteProperty,
+  getPropertyHostContact,
+  getHostOwnProperties,
   getProperties,
   getPropertyById,
   getUnavailableDates,
@@ -12,6 +14,8 @@ import {
   type GetPropertiesParams,
   type PropertiesResponse,
   type Property,
+  type PropertyHostContact,
+  type PropertyHostContactResponse,
   type PropertyResponse,
   type UnavailableDateRange,
   type UnavailableDatesResponse,
@@ -20,7 +24,9 @@ import {
 
 export {
   getProperties,
+  getHostOwnProperties,
   getPropertyById,
+  getPropertyHostContact,
   checkAvailability,
   getUnavailableDates,
   createProperty,
@@ -31,6 +37,8 @@ export {
 
 export type {
   Property,
+  PropertyHostContact,
+  PropertyHostContactResponse,
   PropertyResponse,
   PropertiesResponse,
   AvailabilityResponse,
@@ -44,6 +52,7 @@ export type {
 export const propertyService = {
   getProperties,
   getPropertyById,
+  getPropertyHostContact,
   checkAvailability,
   getUnavailableDates,
   createProperty,

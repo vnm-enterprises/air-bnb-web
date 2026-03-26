@@ -8,9 +8,10 @@ import { Calendar, MapPin, Clock3, RefreshCw, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { getBookingById, getUserBookings, cancelBooking } from "@/infrastructure/services/booking-service";
+import { getBookingById, getUserBookings, cancelBooking, completeBooking } from "@/infrastructure/services/booking-service";
 import { getPropertyById } from "@/infrastructure/services/property-service";
 import type { Booking } from "@/infrastructure/services/booking-service";
+import { resolveImageUrl } from "@/lib/image";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1517457373614-b7152f800908?auto=format&fit=crop&w=1200&q=80";
@@ -53,6 +54,16 @@ function getApiMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function formatDateSafe(value: string): string {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Date unavailable";
+  }
+
+  return parsed.toLocaleDateString();
+}
+
 export default function MyBookingsPage() {
   const router = useRouter();
   const { isAuthenticated, isTraveler, loading: authLoading } = useAuth();
@@ -63,6 +74,7 @@ export default function MyBookingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [cancelingId, setCancelingId] = useState<number | null>(null);
+  const [completingId, setCompletingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isTraveler())) {
@@ -240,6 +252,60 @@ export default function MyBookingsPage() {
     }
   };
 
+  const handleCompleteBooking = async (bookingId: number) => {
+    const confirmed = window.confirm("Mark this booking as completed?");
+    if (!confirmed) {
+      return;
+    }
+
+    setNotice(null);
+    setCompletingId(bookingId);
+
+    try {
+      await completeBooking(bookingId);
+
+      setBookings((current) =>
+        current.map((booking) =>
+          booking.id === bookingId ? { ...booking, status: "completed" } : booking
+        )
+      );
+
+      setNotice({
+        type: "success",
+        message: "Booking marked as completed.",
+      });
+
+      if (activeTab !== "completed") {
+        setActiveTab("completed");
+      }
+    } catch (completeError: unknown) {
+      setNotice({
+        type: "error",
+        message: getApiMessage(completeError, "Failed to mark booking as completed."),
+      });
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
+  const canMarkCompleted = (booking: Booking): boolean => {
+    if (booking.status !== "confirmed") {
+      return false;
+    }
+
+    const checkout = new Date(booking.check_out);
+    if (Number.isNaN(checkout.getTime())) {
+      return false;
+    }
+
+    checkout.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return checkout <= today;
+  };
+
   const filteredBookings = useMemo(
     () => bookings.filter((booking) => booking.status === activeTab),
     [bookings, activeTab]
@@ -355,9 +421,10 @@ export default function MyBookingsPage() {
                   <div className="grid gap-4 p-4 md:grid-cols-[260px_1fr] md:gap-6 md:p-6">
                     <div className="relative h-52 overflow-hidden rounded-2xl md:h-full md:min-h-[200px]">
                       <Image
-                        src={booking.property?.image || FALLBACK_IMAGE}
+                        src={resolveImageUrl(booking.property?.image || "", FALLBACK_IMAGE)}
                         alt={booking.property?.title || "Property"}
                         fill
+                        unoptimized
                         sizes="(max-width: 768px) 100vw, 260px"
                         className="object-cover"
                       />
@@ -381,7 +448,7 @@ export default function MyBookingsPage() {
                         <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                           <p className="inline-flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-[#2C5F5D]" />
-                            {new Date(booking.check_in).toLocaleDateString()} - {new Date(booking.check_out).toLocaleDateString()}
+                            {formatDateSafe(booking.check_in)} - {formatDateSafe(booking.check_out)}
                           </p>
                           <p className="inline-flex items-center gap-2">
                             <Clock3 className="h-4 w-4 text-[#2C5F5D]" />
@@ -408,6 +475,26 @@ export default function MyBookingsPage() {
                               </span>
                             ) : (
                               "Cancel Booking"
+                            )}
+                          </button>
+                        )}
+
+                        {booking.status === "confirmed" && (
+                          <button
+                            onClick={() => handleCompleteBooking(booking.id)}
+                            disabled={completingId === booking.id || !canMarkCompleted(booking)}
+                            title={!canMarkCompleted(booking) ? "Available after checkout date" : "Mark booking as completed"}
+                            className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {completingId === booking.id ? (
+                              <span className="inline-flex items-center gap-2">
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                Completing...
+                              </span>
+                            ) : !canMarkCompleted(booking) ? (
+                              "Complete (after checkout)"
+                            ) : (
+                              "Mark as Completed"
                             )}
                           </button>
                         )}

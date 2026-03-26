@@ -4,7 +4,7 @@ import {
   type Booking,
 } from "@/infrastructure/services/booking-service";
 import {
-  getProperties,
+  getHostOwnProperties,
   getPropertyById,
   type Property,
 } from "@/infrastructure/services/property-service";
@@ -84,16 +84,16 @@ export async function fetchHostBookingsDetailed(perPage = 50): Promise<Normalize
     .filter((booking) => booking.id > 0 && booking.propertyId > 0);
 }
 
-export async function fetchHostProperties(userId: number, perPage = 50): Promise<Property[]> {
-  const firstPage = await getProperties({ page: 1, per_page: perPage, include_all_statuses: true });
+export async function fetchHostProperties(_userId: number, perPage = 50): Promise<Property[]> {
+  const firstPage = await getHostOwnProperties({ page: 1, per_page: perPage });
   const allProperties = [...firstPage.data.properties];
   const pages = firstPage.data.pagination.pages || 1;
 
   if (pages > 1) {
-    const requests: Array<Promise<Awaited<ReturnType<typeof getProperties>>>> = [];
+    const requests: Array<Promise<Awaited<ReturnType<typeof getHostOwnProperties>>>> = [];
 
     for (let page = 2; page <= pages; page += 1) {
-      requests.push(getProperties({ page, per_page: perPage, include_all_statuses: true }));
+      requests.push(getHostOwnProperties({ page, per_page: perPage }));
     }
 
     const responses = await Promise.all(requests);
@@ -102,7 +102,7 @@ export async function fetchHostProperties(userId: number, perPage = 50): Promise
     });
   }
 
-  return allProperties.filter((property) => Number(property.host_id) === Number(userId));
+  return allProperties;
 }
 
 export async function fetchPropertyMap(propertyIds: number[]): Promise<Map<number, Property>> {

@@ -22,6 +22,31 @@ function stripHtml(input: string): string {
   return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function buildDescriptionPreview(raw: string): { lead: string; secondary: string } {
+  const cleaned = stripHtml(raw);
+
+  if (!cleaned) {
+    return {
+      lead: "A thoughtfully curated stay with modern comforts.",
+      secondary: "Open the property to explore full details and amenities.",
+    };
+  }
+
+  const normalized = cleaned.replace(/\s*[-•]\s*/g, ". ");
+  const parts = normalized
+    .split(/[.!?]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const lead = (parts[0] || cleaned).slice(0, 140);
+  const secondary = (parts[1] || parts[0] || "").slice(0, 120);
+
+  return {
+    lead,
+    secondary: secondary && secondary !== lead ? secondary : "Tap to see the full host description and house rules.",
+  };
+}
+
 function PropertySkeleton() {
   return (
     <div className="overflow-hidden rounded-3xl border border-[#d8e8e7] bg-white p-4 shadow-sm">
@@ -101,6 +126,10 @@ export default function ResultsList({
               onClick={() => router.push(`/properties/${property.id}`)}
               className="group cursor-pointer overflow-hidden rounded-3xl border border-[#d8e8e7] bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
             >
+              {(() => {
+                const preview = buildDescriptionPreview(property.description || "");
+
+                return (
               <div className="grid gap-4 p-4 md:grid-cols-[320px_1fr] md:gap-6 md:p-5">
                 <div className="relative h-56 overflow-hidden rounded-2xl md:h-full md:min-h-[220px]">
                   <Image
@@ -149,9 +178,12 @@ export default function ResultsList({
                       </div>
                     </div>
 
-                    <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-slate-600">
-                      {stripHtml(property.description || "") || "No description provided."}
-                    </p>
+                    <div className="mt-4 rounded-2xl border border-[#e5efef] bg-[#f8fcfc] p-3.5">
+                      <p className="text-sm leading-relaxed text-slate-700 line-clamp-2">
+                        {preview.lead}
+                      </p>
+                      <p className="mt-1.5 text-xs text-slate-500 line-clamp-1">{preview.secondary}</p>
+                    </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       {property.amenities?.slice(0, 4).map((amenity) => (
@@ -180,6 +212,8 @@ export default function ResultsList({
                   </div>
                 </div>
               </div>
+                );
+              })()}
             </article>
           ))
         )}

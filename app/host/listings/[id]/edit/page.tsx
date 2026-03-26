@@ -60,6 +60,11 @@ function normalizeStatus(status: string | undefined): ListingStatus {
   return "hidden";
 }
 
+function isApprovedByAdmin(status: string | undefined): boolean {
+  const value = (status || "").toLowerCase();
+  return value === "active" || value === "hidden";
+}
+
 function mapPropertyToForm(property: Property): EditFormState {
   return {
     title: property.title || "",
@@ -87,6 +92,7 @@ export default function EditPropertyPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [form, setForm] = useState<EditFormState>(INITIAL_FORM);
   const [customAmenity, setCustomAmenity] = useState("");
+  const [statusControlEnabled, setStatusControlEnabled] = useState(false);
 
   const propertyId = useMemo(() => {
     const raw = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -125,6 +131,7 @@ export default function EditPropertyPage() {
         }
 
         setForm(mapPropertyToForm(response.data));
+        setStatusControlEnabled(isApprovedByAdmin(response.data.status));
       } catch (fetchError: unknown) {
         if (!active) {
           return;
@@ -188,7 +195,7 @@ export default function EditPropertyPage() {
     setSuccess(null);
 
     try {
-      await updateProperty(propertyId, {
+      const payload: Partial<Property> = {
         title: form.title.trim(),
         description: form.description.trim(),
         location: form.location.trim(),
@@ -196,9 +203,14 @@ export default function EditPropertyPage() {
         max_guests: Math.max(1, Number(form.maxGuests || 1)),
         bedrooms: Math.max(1, Number(form.bedrooms || 1)),
         bathrooms: Math.max(1, Number(form.bathrooms || 1)),
-        status: form.status,
         amenities: form.amenities,
-      });
+      };
+
+      if (statusControlEnabled) {
+        payload.status = form.status;
+      }
+
+      await updateProperty(propertyId, payload);
 
       setSuccess("Property updated successfully.");
 
@@ -299,11 +311,17 @@ export default function EditPropertyPage() {
               <select
                 value={form.status}
                 onChange={(event) => handleChange("status", event.target.value as ListingStatus)}
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400"
+                disabled={!statusControlEnabled}
+                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
               >
                 <option value="active">Active</option>
                 <option value="hidden">Hidden</option>
               </select>
+              {!statusControlEnabled && (
+                <p className="mt-1 text-[11px] text-amber-700">
+                  Status controls unlock only after system admin approval.
+                </p>
+              )}
             </div>
 
             <div>

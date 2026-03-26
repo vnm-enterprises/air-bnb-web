@@ -3,12 +3,13 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Heart, Star, Share2, Trash2 } from "lucide-react";
+import { Heart, Star, Trash2 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/context/AuthContext";
 import type { Property } from "@/infrastructure/services/property-service";
 import { getMyWishlist, removeFromWishlist } from "@/infrastructure/services/wishlist-service";
+import { resolveImageUrl } from "@/lib/image";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80";
@@ -130,32 +131,6 @@ export default function WishlistPage() {
     }
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/wishlist`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "My StayTeal Wishlist",
-          text: "Check out my favorite properties",
-          url,
-        });
-      } catch {
-        // No action needed when user cancels native share
-      }
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      setNotice({ type: "success", message: "Wishlist link copied to clipboard." });
-    } catch {
-      setNotice({
-        type: "error",
-        message: "Could not copy the link. Please copy it manually from the address bar.",
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -194,15 +169,7 @@ export default function WishlistPage() {
             </div>
           </section>
 
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <button
-              onClick={handleShare}
-              className="inline-flex items-center gap-2 rounded-full border border-[#c8dddc] bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-[#edf5f5]"
-            >
-              <Share2 className="h-4 w-4" />
-              Share List
-            </button>
-
+          <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
             <button
               onClick={() => router.push("/properties")}
               className="rounded-full bg-[#2C5F5D] px-5 py-2 text-sm font-semibold text-white hover:bg-[#244f4d]"
@@ -262,9 +229,10 @@ export default function WishlistPage() {
                     >
                       <div className="relative h-52 overflow-hidden">
                         <Image
-                          src={image}
+                          src={resolveImageUrl(image, FALLBACK_IMAGE)}
                           alt={property.title}
                           fill
+                          unoptimized
                           sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
                           className="object-cover transition-transform duration-500 group-hover:scale-105"
                         />

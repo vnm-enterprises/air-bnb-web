@@ -39,6 +39,19 @@ export interface PropertyResponse {
   data: Property;
 }
 
+export interface PropertyHostContact {
+  host_id: number;
+  host_name: string;
+  host_email: string;
+  host_phone: string;
+}
+
+export interface PropertyHostContactResponse {
+  success: boolean;
+  message: string;
+  data: PropertyHostContact;
+}
+
 export interface UnavailableDateRange {
   from: string;
   to: string;
@@ -125,6 +138,19 @@ export async function getPropertyById(id: number): Promise<PropertyResponse> {
 }
 
 /**
+ * Fetch host contact information for a property.
+ */
+export async function getPropertyHostContact(id: number): Promise<PropertyHostContactResponse> {
+  try {
+    const response = await api.get<PropertyHostContactResponse>(`/api/v1/properties/${id}/host-contact`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching host contact for property ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Check property availability for specific dates
  */
 export async function checkAvailability(
@@ -205,6 +231,22 @@ export async function deleteProperty(
     return response.data;
   } catch (error) {
     console.error(`Error deleting property ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch only the current authenticated host's own properties (all statuses).
+ * Uses the /hosts/me/properties endpoint which bypasses the active-only filter.
+ */
+export async function getHostOwnProperties(
+  params: { page?: number; per_page?: number } = {}
+): Promise<PropertiesResponse> {
+  try {
+    const response = await api.get<PropertiesResponse>('/api/v1/hosts/me/properties', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching host own properties:', error);
     throw error;
   }
 }
