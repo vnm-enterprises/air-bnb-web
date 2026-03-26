@@ -9,6 +9,11 @@ import "react-day-picker/dist/style.css";
 
 export default function Hero() {
   const router = useRouter();
+  const today = useMemo(() => {
+    const value = new Date();
+    value.setHours(0, 0, 0, 0);
+    return value;
+  }, []);
 
   const [range, setRange] = useState<DateRange | undefined>();
   const [showCalendar, setShowCalendar] = useState(false);
@@ -51,7 +56,7 @@ export default function Hero() {
   const updateGuest = (type: keyof typeof guests, value: number) => {
     setGuests((prev) => ({
       ...prev,
-      [type]: Math.max(0, prev[type] + value),
+      [type]: Math.max(type === "adults" ? 1 : 0, prev[type] + value),
     }));
   };
 
@@ -85,6 +90,12 @@ export default function Hero() {
       <div className="absolute inset-0 bg-black/45" />
 
       <div className="relative z-30 mx-auto w-full max-w-6xl">
+        <div className="mb-6 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.15em] text-white/90">
+          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">2,000+ verified stays</span>
+          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">Real-time availability</span>
+          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">No hidden fees</span>
+        </div>
+
         <h1 className="mb-4 max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl md:text-6xl">
           Experience the extraordinary
         </h1>
@@ -156,6 +167,7 @@ export default function Hero() {
                 selected={range}
                 onSelect={setRange}
                 numberOfMonths={2}
+                disabled={{ before: today }}
                 className="text-sm"
               />
             </div>
