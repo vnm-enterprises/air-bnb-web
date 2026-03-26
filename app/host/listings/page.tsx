@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,10 +16,11 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import {
   deleteProperty,
-  getProperties,
   Property,
   updateProperty,
 } from "@/infrastructure/services/property-service";
+import { fetchHostProperties } from "@/infrastructure/services/host-dashboard-service";
+import { resolveImageUrl } from "@/lib/image";
 
 type ListingStatus = "Active" | "Pending" | "Hidden";
 
@@ -35,10 +37,23 @@ type Listing = {
   maxGuests: number;
   bedrooms: number;
   bathrooms: number;
+  amenities: string[];
+  rawStatus: string;
 };
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=900&q=80";
+
+function getApiMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+
+  return fallback;
+}
 
 function toListingStatus(status: string | undefined): ListingStatus {
   const normalized = (status || "").toLowerCase();
@@ -66,10 +81,15 @@ function mapPropertyToListing(property: Property): Listing {
     price: Number(property.price || 0),
     performanceLabel: "Occupancy",
     performancePct: Math.max(0, Math.min(100, Math.round(Number(property.rating_average || 0) * 20))),
-    thumb: typeof firstImage === "string" && firstImage.trim() ? firstImage : FALLBACK_IMAGE,
+    thumb: resolveImageUrl(
+      typeof firstImage === "string" && firstImage.trim() ? firstImage : "",
+      FALLBACK_IMAGE
+    ),
     maxGuests: Number(property.max_guests || 0),
     bedrooms: Number(property.bedrooms || 0),
     bathrooms: Number(property.bathrooms || 0),
+    amenities: Array.isArray(property.amenities) ? property.amenities : [],
+    rawStatus: property.status || "active",
   };
 }
 
@@ -95,37 +115,23 @@ export default function HostListingsPage() {
     setDataError(null);
 
     try {
-      const firstPage = await getProperties({ page: 1, per_page: 50 });
-      const allProperties = [...firstPage.data.properties];
-      const pages = firstPage.data.pagination.pages || 1;
-
-      if (pages > 1) {
-        const requests: Promise<any>[] = [];
-
-        for (let page = 2; page <= pages; page += 1) {
-          requests.push(getProperties({ page, per_page: 50 }));
-        }
-
-        const responses = await Promise.all(requests);
-        responses.forEach((res) => {
-          allProperties.push(...res.data.properties);
-        });
-      }
-
-      const hostListings = allProperties
-        .filter((property) => property.host_id === user.id)
-        .map(mapPropertyToListing);
+      const hostListings = (await fetchHostProperties(user.id, 50)).map(mapPropertyToListing);
 
       setListings(hostListings);
-    } catch (error: any) {
-      setDataError(error?.response?.data?.message || "Failed to load listings");
+    } catch (error: unknown) {
+      setDataError(getApiMessage(error, "Failed to load listings"));
     } finally {
       setDataLoading(false);
     }
   }, [user?.id]);
 
   useEffect(() => {
-    if (loading || !isAuthenticated || !isHost()) {
+    if (loading) {
+      return;
+    }
+
+    if (!isAuthenticated || !isHost()) {
+      setDataLoading(false);
       return;
     }
 
@@ -204,6 +210,8 @@ export default function HostListingsPage() {
         max_guests: listing.maxGuests,
         bedrooms: listing.bedrooms,
         bathrooms: listing.bathrooms,
+        amenities: listing.amenities,
+        status: listing.rawStatus,
       });
 
       if (response.success) {
@@ -213,8 +221,8 @@ export default function HostListingsPage() {
           current.map((row) => (row.id === listing.id ? updated : row))
         );
       }
-    } catch (error: any) {
-      setDataError(error?.response?.data?.message || "Failed to update listing");
+    } catch (error: unknown) {
+      setDataError(getApiMessage(error, "Failed to update listing"));
     } finally {
       setActionLoadingId(null);
     }
@@ -235,8 +243,8 @@ export default function HostListingsPage() {
     try {
       await deleteProperty(listing.id);
       setListings((current) => current.filter((row) => row.id !== listing.id));
-    } catch (error: any) {
-      setDataError(error?.response?.data?.message || "Failed to delete listing");
+    } catch (error: unknown) {
+      setDataError(getApiMessage(error, "Failed to delete listing"));
     } finally {
       setActionLoadingId(null);
     }
