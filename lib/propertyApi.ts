@@ -93,6 +93,7 @@ export interface GetPropertiesParams {
   check_in?: string;
   check_out?: string;
   sort?: 'created_desc' | 'price_asc' | 'price_desc';
+  include_all_statuses?: boolean;
 }
 
 /**
