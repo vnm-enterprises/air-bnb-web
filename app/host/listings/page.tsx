@@ -7,18 +7,12 @@ import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
-  ChevronDown,
   Pencil,
   Trash2,
   Eye,
-  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import {
-  deleteProperty,
-  Property,
-  updateProperty,
-} from "@/infrastructure/services/property-service";
+import { deleteProperty, Property } from "@/infrastructure/services/property-service";
 import { fetchHostProperties } from "@/infrastructure/services/host-dashboard-service";
 import { resolveImageUrl } from "@/lib/image";
 
@@ -96,6 +90,7 @@ function mapPropertyToListing(property: Property): Listing {
 export default function HostListingsPage() {
   const router = useRouter();
   const { isAuthenticated, isHost, loading, user } = useAuth();
+  const isHostUser = isHost();
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | ListingStatus>("All");
@@ -130,13 +125,13 @@ export default function HostListingsPage() {
       return;
     }
 
-    if (!isAuthenticated || !isHost()) {
+    if (!isAuthenticated || !isHostUser) {
       setDataLoading(false);
       return;
     }
 
     fetchListings();
-  }, [loading, isAuthenticated, isHost, fetchListings]);
+  }, [loading, isAuthenticated, isHostUser, fetchListings]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -169,63 +164,8 @@ export default function HostListingsPage() {
     };
   }, [listings]);
 
-  const handleEdit = async (listing: Listing) => {
-    const nextTitleInput = window.prompt("Update listing title", listing.title);
-
-    if (nextTitleInput === null) {
-      return;
-    }
-
-    const nextLocationInput = window.prompt("Update location", listing.location);
-
-    if (nextLocationInput === null) {
-      return;
-    }
-
-    const nextPriceInput = window.prompt("Update price per night (USD)", String(listing.price));
-
-    if (nextPriceInput === null) {
-      return;
-    }
-
-    const nextPrice = Number(nextPriceInput);
-
-    if (Number.isNaN(nextPrice) || nextPrice < 0) {
-      window.alert("Please enter a valid price.");
-      return;
-    }
-
-    const nextTitle = nextTitleInput.trim() || listing.title;
-    const nextLocation = nextLocationInput.trim() || listing.location;
-
-    setActionLoadingId(listing.id);
-    setDataError(null);
-
-    try {
-      const response = await updateProperty(listing.id, {
-        title: nextTitle,
-        description: listing.description,
-        location: nextLocation,
-        price: nextPrice,
-        max_guests: listing.maxGuests,
-        bedrooms: listing.bedrooms,
-        bathrooms: listing.bathrooms,
-        amenities: listing.amenities,
-        status: listing.rawStatus,
-      });
-
-      if (response.success) {
-        const updated = mapPropertyToListing(response.data);
-
-        setListings((current) =>
-          current.map((row) => (row.id === listing.id ? updated : row))
-        );
-      }
-    } catch (error: unknown) {
-      setDataError(getApiMessage(error, "Failed to update listing"));
-    } finally {
-      setActionLoadingId(null);
-    }
+  const handleEdit = (listing: Listing) => {
+    router.push(`/host/listings/${listing.id}/edit`);
   };
 
   const handleDelete = async (listing: Listing) => {
@@ -296,23 +236,17 @@ export default function HostListingsPage() {
               </div>
 
               <div className="flex items-center gap-2 justify-end">
-                <button
-                  onClick={() =>
-                    setStatusFilter((current) =>
-                      current === "All"
-                        ? "Active"
-                        : current === "Active"
-                        ? "Pending"
-                        : current === "Pending"
-                        ? "Hidden"
-                        : "All"
-                    )
-                  }
-                  className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 transition text-[11px] font-semibold px-3 py-2 rounded-md text-slate-600"
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as "All" | ListingStatus)}
+                  className="bg-white border border-slate-200 rounded-md px-3 py-2 text-[11px] font-semibold text-slate-600 outline-none focus:border-slate-300"
+                  aria-label="Filter listings by status"
                 >
-                  {statusFilter === "All" ? "All Status" : statusFilter}
-                  <ChevronDown className="w-4 h-4" />
-                </button>
+                  <option value="All">All Statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Hidden">Hidden</option>
+                </select>
               </div>
             </div>
 
@@ -412,14 +346,6 @@ export default function HostListingsPage() {
                               >
                                 <Eye className="w-4 h-4 text-slate-500" />
                               </Link>
-
-                              <button
-                                className="p-1.5 rounded-md hover:bg-slate-100 transition"
-                                aria-label="Analytics"
-                                onClick={() => router.push("/host")}
-                              >
-                                <BarChart3 className="w-4 h-4 text-slate-500" />
-                              </button>
 
                               <button
                                 className="p-1.5 rounded-md hover:bg-slate-100 transition disabled:opacity-50"
