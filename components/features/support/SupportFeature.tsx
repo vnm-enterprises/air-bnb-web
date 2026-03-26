@@ -12,6 +12,24 @@ import { useSupportForm } from "@/application/hooks/use-support-form";
 
 export function SupportFeature() {
   const { form, submitting, banner, quickTips, handleChange, handleSubmit } = useSupportForm();
+  const faqs = [
+    {
+      question: "How long does it take to receive a response?",
+      answer: "Most requests receive a reply within 30 minutes. During peak hours, it may take up to 2 hours.",
+    },
+    {
+      question: "How can I cancel or change a booking?",
+      answer: "Open your booking confirmation, select Manage booking, and follow the cancellation or date-change flow.",
+    },
+    {
+      question: "What details should I include in a support request?",
+      answer: "Share your booking ID, property name, travel dates, and a short description of the issue for faster resolution.",
+    },
+    {
+      question: "Where can I report a payment issue?",
+      answer: "Use the form on this page and choose a clear payment-related subject so our billing team can prioritize it.",
+    },
+  ];
 
   return (
     <>
@@ -138,6 +156,24 @@ export function SupportFeature() {
               </ul>
             </CardContent>
           </Card>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-6 pb-20">
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#2C5F5D]">FAQ</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Frequently asked questions</h2>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {faqs.map((faq) => (
+              <Card key={faq.question} className="border border-[#d7e9e8] bg-white">
+                <CardContent className="p-6">
+                  <h3 className="text-base font-semibold text-slate-900">{faq.question}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{faq.answer}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </section>
       </main>
 
