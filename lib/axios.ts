@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import { tokenStorage } from '@/infrastructure/security/token-storage';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -7,7 +8,7 @@ declare module 'axios' {
   }
 }
 
-const baseURL = 'http://localhost:8080/wp-json' //process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'http://localhost:8080/wp-json';
+const baseURL = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'http://localhost:8080/wp-json';
 const usesRestRoute = baseURL.includes('rest_route=');
 const AUTH_FREE_ROUTES = [
   '/api/v1/login',
@@ -22,6 +23,7 @@ let refreshPromise: Promise<string | null> | null = null;
 
 const api = axios.create({
   baseURL,
+  timeout: 15000,
 });
 
 function clearStoredAuth() {
@@ -33,6 +35,7 @@ function clearStoredAuth() {
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user_id');
   delete api.defaults.headers.common.Authorization;
+  tokenStorage.clearSession();
 }
 
 function decodeBase64Url(value: string): string {
@@ -70,12 +73,12 @@ function resolveRefreshUserId(): number | null {
     return null;
   }
 
-  const storedUserId = localStorage.getItem('user_id');
-  if (storedUserId && /^\d+$/.test(storedUserId)) {
-    return Number(storedUserId);
+  const storedUserId = tokenStorage.getUserId();
+  if (storedUserId) {
+    return storedUserId;
   }
 
-  const accessToken = localStorage.getItem('access_token');
+  const accessToken = tokenStorage.getAccessToken();
   if (!accessToken) {
     return null;
   }
@@ -83,7 +86,7 @@ function resolveRefreshUserId(): number | null {
   const tokenUserId = extractUserIdFromAccessToken(accessToken);
 
   if (tokenUserId) {
-    localStorage.setItem('user_id', String(tokenUserId));
+    tokenStorage.setUserId(tokenUserId);
   }
 
   return tokenUserId;
@@ -99,7 +102,7 @@ async function refreshAccessToken(): Promise<string | null> {
     return null;
   }
 
-  const refreshToken = localStorage.getItem('refresh_token');
+  const refreshToken = tokenStorage.getRefreshToken();
   const userId = resolveRefreshUserId();
 
   if (!refreshToken || !userId) {
@@ -124,12 +127,11 @@ async function refreshAccessToken(): Promise<string | null> {
       return null;
     }
 
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('user_id', String(userId));
-
-    if (response.data?.refresh_token) {
-      localStorage.setItem('refresh_token', response.data.refresh_token);
-    }
+    tokenStorage.setSession({
+      accessToken,
+      refreshToken: response.data?.refresh_token || refreshToken,
+      userId,
+    });
 
     api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
 
@@ -162,7 +164,7 @@ api.interceptors.request.use(
 
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
+      const token = tokenStorage.getAccessToken();
       if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
