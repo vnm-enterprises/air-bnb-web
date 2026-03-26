@@ -1,13 +1,12 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
-  ShieldCheck,
   Lock,
-  CheckCircle2
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createBooking } from "@/infrastructure/services/booking-service";
@@ -18,6 +17,30 @@ export default function CheckoutPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const getApiMessage = (error: unknown, fallback: string) => {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "response" in error
+    ) {
+      const response = (error as { response?: { status?: number; data?: { message?: string } } }).response;
+      const statusCode = response?.status;
+      const apiMessage = response?.data?.message;
+
+      if (statusCode === 409) {
+        return apiMessage || "Selected dates are no longer available. Please choose different dates.";
+      }
+
+      if (statusCode === 422) {
+        return apiMessage || "Please review booking details and try again.";
+      }
+
+      return apiMessage || fallback;
+    }
+
+    return fallback;
+  };
 
   // Get booking details from URL params
   const [bookingData, setBookingData] = useState({
@@ -73,17 +96,8 @@ export default function CheckoutPage() {
         localStorage.removeItem('pendingBooking');
         router.push(`/checkout/success?bookingId=${response.data.booking_id}`);
       }
-    } catch (err: any) {
-      const statusCode = err?.response?.status;
-      const apiMessage = err?.response?.data?.message;
-
-      if (statusCode === 409) {
-        setError(apiMessage || 'Selected dates are no longer available. Please choose different dates.');
-      } else if (statusCode === 422) {
-        setError(apiMessage || 'Please review booking details and try again.');
-      } else {
-        setError(apiMessage || 'Failed to create booking');
-      }
+    } catch (err: unknown) {
+      setError(getApiMessage(err, "Failed to create booking"));
     } finally {
       setLoading(false);
     }
@@ -218,6 +232,7 @@ export default function CheckoutPage() {
               <div className="flex gap-4 mb-6">
                 <img
                   src={bookingData.propertyImage || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=300&q=80"}
+                  alt={bookingData.propertyTitle || "Property image"}
                   className="w-24 h-20 rounded-xl object-cover"
                 />
                 <div>
