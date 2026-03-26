@@ -13,10 +13,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold mb-4">Support</h3>
           <ul className="space-y-3">
-            <li><Link href="#" className="hover:underline">Help Center</Link></li>
-            <li><Link href="#" className="hover:underline">Safety Information</Link></li>
-            <li><Link href="#" className="hover:underline">Cancellation Options</Link></li>
-            <li><Link href="#" className="hover:underline">Report Concern</Link></li>
+            <li><Link href="/support" className="hover:underline">Help Center</Link></li>
+            <li><Link href="/support?safety=1" className="hover:underline">Safety Information</Link></li>
+            <li><Link href="/support?topic=cancellation" className="hover:underline">Cancellation Options</Link></li>
+            <li><Link href="/support?topic=report" className="hover:underline">Report Concern</Link></li>
           </ul>
         </div>
 
@@ -24,10 +24,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold mb-4">Hosting</h3>
           <ul className="space-y-3">
-            <li><Link href="#" className="hover:underline">Become a Host</Link></li>
-            <li><Link href="#" className="hover:underline">Host Resources</Link></li>
-            <li><Link href="#" className="hover:underline">Community Forum</Link></li>
-            <li><Link href="#" className="hover:underline">Responsible Hosting</Link></li>
+            <li><Link href="/host" className="hover:underline">Become a Host</Link></li>
+            <li><Link href="/host/dashboard" className="hover:underline">Host Resources</Link></li>
+            <li><Link href="/host/bookings" className="hover:underline">Community Forum</Link></li>
+            <li><Link href="/host/listings" className="hover:underline">Responsible Hosting</Link></li>
           </ul>
         </div>
 
@@ -35,10 +35,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold mb-4">Company</h3>
           <ul className="space-y-3">
-            <li><Link href="#" className="hover:underline">About</Link></li>
-            <li><Link href="#" className="hover:underline">Careers</Link></li>
-            <li><Link href="#" className="hover:underline">Press</Link></li>
-            <li><Link href="#" className="hover:underline">Investors</Link></li>
+            <li><Link href="/" className="hover:underline">About</Link></li>
+            <li><Link href="/properties" className="hover:underline">Careers</Link></li>
+            <li><Link href="/support" className="hover:underline">Press</Link></li>
+            <li><Link href="/profile" className="hover:underline">Investors</Link></li>
           </ul>
         </div>
 
@@ -46,10 +46,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold mb-4">Legal</h3>
           <ul className="space-y-3">
-            <li><Link href="#" className="hover:underline">Privacy Policy</Link></li>
-            <li><Link href="#" className="hover:underline">Terms of Service</Link></li>
-            <li><Link href="#" className="hover:underline">Cookie Policy</Link></li>
-            <li><Link href="#" className="hover:underline">Accessibility</Link></li>
+            <li><Link href="/support?topic=privacy" className="hover:underline">Privacy Policy</Link></li>
+            <li><Link href="/support?topic=terms" className="hover:underline">Terms of Service</Link></li>
+            <li><Link href="/support?topic=cookies" className="hover:underline">Cookie Policy</Link></li>
+            <li><Link href="/support?topic=accessibility" className="hover:underline">Accessibility</Link></li>
           </ul>
         </div>
 
