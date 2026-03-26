@@ -92,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("initializing");
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshActionRef = useRef<() => Promise<boolean>>(async () => false);
+  const initializedRef = useRef(false);
 
   const resetRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current) {
@@ -147,18 +148,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    if (!user) {
-      const nextUser = await fetchAndStoreCurrentUser();
-      if (!nextUser) {
-        clearSession();
-        return false;
-      }
-    } else {
-      scheduleRefresh();
+    const nextUser = await fetchAndStoreCurrentUser();
+
+    if (!nextUser) {
+      clearSession();
+      return false;
     }
 
+    scheduleRefresh();
+
     return true;
-  }, [clearSession, fetchAndStoreCurrentUser, scheduleRefresh, user]);
+  }, [clearSession, fetchAndStoreCurrentUser, scheduleRefresh]);
 
   useEffect(() => {
     refreshActionRef.current = refreshTokenInternal;
@@ -189,6 +189,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession, fetchAndStoreCurrentUser, refreshTokenInternal]);
 
   useEffect(() => {
+    if (initializedRef.current) {
+      return;
+    }
+
+    initializedRef.current = true;
     void initializeSession();
 
     return () => {
