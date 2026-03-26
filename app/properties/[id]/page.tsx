@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -11,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getPropertyById, getUnavailableDates, Property } from "@/infrastructure/services/property-service";
 import { getPropertyReviews, replyToReview, type PropertyReview } from "@/infrastructure/services/review-service";
 import { useWishlist } from "@/hooks/useWishlist";
+import { resolveImageUrl } from "@/lib/image";
 import "react-day-picker/dist/style.css";
 
 const FALLBACK_IMAGE =
@@ -131,12 +133,12 @@ export default function PropertyPage() {
         }
 
         setProperty(response.data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!active) {
           return;
         }
 
-        setError(err?.response?.data?.message || "Failed to load property details");
+        setError(getApiMessage(err, "Failed to load property details"));
       } finally {
         if (active) {
           setLoading(false);
@@ -161,10 +163,10 @@ export default function PropertyPage() {
     const fetchUnavailableDates = async () => {
       // Clear previous dates when switching properties
       setDisabledDateMatchers([]);
-      
+
       try {
         const response = await getUnavailableDates(propertyId);
-        
+
         if (!active) {
           return;
         }
@@ -285,7 +287,9 @@ export default function PropertyPage() {
       (image): image is string => typeof image === "string" && image.trim().length > 0
     );
 
-    return valid.length > 0 ? valid : [FALLBACK_IMAGE];
+    return valid.length > 0
+      ? valid.map((image) => resolveImageUrl(image, FALLBACK_IMAGE))
+      : [FALLBACK_IMAGE];
   }, [property]);
 
   const amenities = useMemo(() => {
@@ -429,9 +433,9 @@ export default function PropertyPage() {
               disabled={isProcessing(propertyId)}
               className="flex items-center gap-2 hover:underline disabled:opacity-60"
             >
-              <Heart 
-                size={16} 
-                className={isInWishlist(propertyId) ? "fill-red-500 text-red-500" : ""} 
+              <Heart
+                size={16}
+                className={isInWishlist(propertyId) ? "fill-red-500 text-red-500" : ""}
               />
               {isInWishlist(propertyId) ? "Saved" : "Save"}
             </button>
@@ -634,9 +638,9 @@ export default function PropertyPage() {
               </div>
 
               <div className="mt-6 border rounded-xl p-4">
-                <DayPicker 
-                  mode="range" 
-                  selected={range} 
+                <DayPicker
+                  mode="range"
+                  selected={range}
                   onSelect={setRange}
                   disabled={disabledDateMatchers}
                   excludeDisabled
