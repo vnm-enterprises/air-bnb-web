@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Search, FileDown, FileText, Pencil } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { confirmBooking, getBookingById, getHostBookings } from "@/infrastructure/services/booking-service";
-import { getPropertyById } from "@/infrastructure/services/property-service";
+import { confirmBooking } from "@/infrastructure/services/booking-service";
 import { markPaymentComplete } from "@/infrastructure/services/payment-service";
+import { fetchHostBookingsDetailed, fetchPropertyMap } from "@/infrastructure/services/host-dashboard-service";
 
 type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
 
@@ -22,6 +22,10 @@ type BookingRow = {
   rawTotal: number;
   rawGuests: number;
   paymentStatus?: string;
+};
+
+type PropertySummary = {
+  title?: string;
 };
 
 const TABS: { label: string; value: "All" | BookingStatus }[] = [
@@ -75,6 +79,17 @@ function calculateNightsLabel(checkIn: string, checkOut: string): string {
   return `${nights} night${nights === 1 ? "" : "s"}`;
 }
 
+function getApiMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+
+  return fallback;
+}
+
 export default function HostBookingsPage() {
   const { isAuthenticated, isHost, loading: authLoading } = useAuth();
 
@@ -87,7 +102,12 @@ export default function HostBookingsPage() {
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading || !isAuthenticated || !isHost()) {
+    if (authLoading) {
+      return;
+    }
+
+    if (!isAuthenticated || !isHost()) {
+      setDataLoading(false);
       return;
     }
 
@@ -98,94 +118,34 @@ export default function HostBookingsPage() {
       setDataError(null);
 
       try {
-        const firstPage = await getHostBookings({ page: 1, per_page: 50 });
-        const payload: any = firstPage?.data;
-
-        let bookingIds: number[] = [];
-        let bookingItems: any[] = [];
-
-        if (Array.isArray(payload)) {
-          bookingItems = payload;
-        } else if (Array.isArray(payload?.bookings)) {
-          const first = payload.bookings[0];
-
-          if (typeof first === "number" || typeof first === "string") {
-            bookingIds = payload.bookings.map((id: number | string) => Number(id)).filter((id: number) => id > 0);
-          } else {
-            bookingItems = payload.bookings;
-          }
-        }
-
-        if (bookingIds.length > 0) {
-          const details = await Promise.all(
-            bookingIds.map(async (id) => {
-              try {
-                const response = await getBookingById(id);
-                return response.data;
-              } catch {
-                return null;
-              }
-            })
-          );
-
-          bookingItems = details.filter(Boolean);
-        }
-
-        const normalized = bookingItems
-          .map((booking: any) => ({
-            id: Number(booking.id),
-            property_id: Number(booking.property_id),
-            traveler_id: Number(booking.traveler_id ?? booking.user_id ?? 0),
-            traveler_name:
-              typeof booking.traveler_name === "string" ? booking.traveler_name.trim() : "",
-            check_in: String(booking.check_in ?? ""),
-            check_out: String(booking.check_out ?? ""),
-            guest_count: Number(booking.guest_count ?? booking.guests ?? 0),
-            total_price: Number(booking.total_price ?? 0),
-            status: String(booking.status ?? "pending"),
-            payment_status: String(booking.payment_status ?? "pending"),
-          }))
-          .filter((booking: any) => booking.id > 0);
+        const normalized = await fetchHostBookingsDetailed(50);
 
         const propertyIds = Array.from(
           new Set(
             normalized
-              .map((booking: any) => booking.property_id)
+              .map((booking) => booking.propertyId)
               .filter((propertyId: number) => propertyId > 0)
           )
         );
 
-        const propertyEntries = await Promise.all(
-          propertyIds.map(async (propertyId) => {
-            try {
-              const response = await getPropertyById(propertyId);
-              return [propertyId, response.data] as const;
-            } catch {
-              return [propertyId, null] as const;
-            }
-          })
-        );
+        const propertyMap = await fetchPropertyMap(propertyIds) as Map<number, PropertySummary>;
 
-        const propertyMap = new Map<number, any>(
-          propertyEntries.filter((entry): entry is readonly [number, any] => entry[1] !== null)
-        );
-
-        const rows: BookingRow[] = normalized.map((booking: any) => {
-          const property = propertyMap.get(booking.property_id);
-          const guestName = booking.traveler_name || "Guest";
+        const rows: BookingRow[] = normalized.map((booking) => {
+          const property = propertyMap.get(booking.propertyId);
+          const guestName = booking.travelerName || "Guest";
 
           return {
             id: String(booking.id),
             guestName,
-            guestMeta: booking.traveler_name ? "Traveler" : "Guest",
-            property: property?.title || `Property #${booking.property_id}`,
-            dateRange: formatDateRange(booking.check_in, booking.check_out),
-            nights: calculateNightsLabel(booking.check_in, booking.check_out),
-            total: `$${booking.total_price.toFixed(2)}`,
+            guestMeta: booking.travelerName ? "Traveler" : "Guest",
+            property: property?.title || `Property #${booking.propertyId}`,
+            dateRange: formatDateRange(booking.checkIn, booking.checkOut),
+            nights: calculateNightsLabel(booking.checkIn, booking.checkOut),
+            total: `$${booking.totalPrice.toFixed(2)}`,
             status: toStatus(booking.status),
-            rawTotal: booking.total_price,
-            rawGuests: booking.guest_count,
-            paymentStatus: booking.payment_status,
+            rawTotal: booking.totalPrice,
+            rawGuests: booking.guestCount,
+            paymentStatus: booking.paymentStatus,
           };
         });
 
@@ -194,12 +154,12 @@ export default function HostBookingsPage() {
         }
 
         setBookings(rows);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!active) {
           return;
         }
 
-        setDataError(error?.response?.data?.message || "Failed to load host bookings");
+        setDataError(getApiMessage(error, "Failed to load host bookings"));
         setBookings([]);
       } finally {
         if (active) {
@@ -259,9 +219,8 @@ export default function HostBookingsPage() {
             : row
         )
       );
-    } catch (error: any) {
-      const apiMessage = error?.response?.data?.message;
-      setDataError(apiMessage || "Failed to mark payment as completed");
+    } catch (error: unknown) {
+      setDataError(getApiMessage(error, "Failed to mark payment as completed"));
     } finally {
       setMarkingPaidId(null);
     }
@@ -283,16 +242,23 @@ export default function HostBookingsPage() {
             : row
         )
       );
-    } catch (error: any) {
-      const statusCode = error?.response?.status;
-      const apiMessage = error?.response?.data?.message;
+    } catch (error: unknown) {
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { status?: number } }).response?.status === "number"
+          ? (error as { response?: { status?: number } }).response?.status
+          : undefined;
+
+      const apiMessage = getApiMessage(error, "Failed to confirm booking");
 
       if (statusCode === 402) {
         setDataError(apiMessage || "Payment must be marked as completed before confirming.");
       } else if (statusCode === 422) {
         setDataError(apiMessage || "Booking cannot be confirmed from its current status.");
       } else {
-        setDataError(apiMessage || "Failed to confirm booking");
+        setDataError(apiMessage);
       }
     } finally {
       setConfirmingId(null);
