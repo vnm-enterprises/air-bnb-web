@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import api from './axios';
+import { tokenStorage } from '@/infrastructure/security/token-storage';
 
 export type LoginResponse = {
   access_token: string;
@@ -54,40 +55,27 @@ function getApiErrorMessage(err: any, fallback: string): string {
 }
 
 export function setAccessToken(token: string) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('access_token', token);
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  }
+  tokenStorage.setAccessToken(token);
+  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 }
 
 export function getAccessToken(): string | null {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('access_token');
-  }
-  return null;
+  return tokenStorage.getAccessToken();
 }
 
 export function setRefreshToken(token: string) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('refresh_token', token);
-  }
+  tokenStorage.setRefreshToken(token);
 }
 
 export function getRefreshToken(): string | null {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('refresh_token');
-  }
-  return null;
+  return tokenStorage.getRefreshToken();
 }
 
 export function clearAuthTokens() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    try {
-      delete api.defaults.headers.common['Authorization'];
-    } catch {}
-  }
+  tokenStorage.clearSession();
+  try {
+    delete api.defaults.headers.common['Authorization'];
+  } catch {}
 }
 
 /**
@@ -104,8 +92,11 @@ export async function login(
     });
     const data = res.data as LoginResponse;
 
-    setAccessToken(data.access_token);
-    setRefreshToken(data.refresh_token);
+    tokenStorage.setSession({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+    });
+    api.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`;
 
     return { success: true, data };
   } catch (err: any) {
@@ -185,7 +176,7 @@ export async function resetPassword(
  */
 export async function refreshAccessToken(): Promise<{ success: boolean; data?: LoginResponse; error?: string }> {
   try {
-    const userId = localStorage.getItem('user_id');
+    const userId = tokenStorage.getUserId();
     const refreshToken = getRefreshToken();
 
     if (!userId || !refreshToken) {
@@ -193,7 +184,7 @@ export async function refreshAccessToken(): Promise<{ success: boolean; data?: L
     }
 
     const res = await api.post('/api/v1/refresh', {
-      user_id: parseInt(userId),
+      user_id: userId,
       refresh_token: refreshToken
     });
 
