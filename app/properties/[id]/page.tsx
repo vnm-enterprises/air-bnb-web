@@ -77,6 +77,10 @@ function getApiMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export default function PropertyPage() {
   const params = useParams();
   const router = useRouter();
@@ -471,7 +475,14 @@ export default function PropertyPage() {
               </p>
             </div>
 
-            <p className="text-gray-700 leading-relaxed">{property.description || "No description provided."}</p>
+            {stripHtml(property.description || "").length > 0 ? (
+              <div
+                className="prose prose-slate max-w-none text-gray-700 leading-relaxed prose-p:my-2 prose-ul:my-2 prose-ol:my-2"
+                dangerouslySetInnerHTML={{ __html: property.description }}
+              />
+            ) : (
+              <p className="text-gray-700 leading-relaxed">No description provided.</p>
+            )}
 
             <hr />
 
