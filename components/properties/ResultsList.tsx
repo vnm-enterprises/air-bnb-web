@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Star, Heart, RefreshCw } from "lucide-react";
 import type { Property } from "@/infrastructure/services/property-service";
 import { useWishlist } from "@/hooks/useWishlist";
+import { resolveImageUrl } from "@/lib/image";
 
 interface ResultsListProps {
   properties: Property[];
@@ -48,7 +49,7 @@ export default function ResultsList({
 
   const getImageUrl = (property: Property): string => {
     if (property.images && property.images.length > 0) {
-      return property.images[0];
+      return resolveImageUrl(property.images[0], "https://images.unsplash.com/photo-1562183241-b8d776b07f16?q=80&w=1200&auto=format&fit=crop");
     }
 
     return "https://images.unsplash.com/photo-1562183241-b8d776b07f16?q=80&w=1200&auto=format&fit=crop";
@@ -102,6 +103,7 @@ export default function ResultsList({
                     src={getImageUrl(property)}
                     alt={property.title}
                     fill
+                    unoptimized
                     sizes="(max-width: 768px) 100vw, 320px"
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
