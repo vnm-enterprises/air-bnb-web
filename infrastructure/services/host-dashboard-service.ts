@@ -85,7 +85,7 @@ export async function fetchHostBookingsDetailed(perPage = 50): Promise<Normalize
 }
 
 export async function fetchHostProperties(userId: number, perPage = 50): Promise<Property[]> {
-  const firstPage = await getProperties({ page: 1, per_page: perPage });
+  const firstPage = await getProperties({ page: 1, per_page: perPage, include_all_statuses: true });
   const allProperties = [...firstPage.data.properties];
   const pages = firstPage.data.pagination.pages || 1;
 
@@ -93,7 +93,7 @@ export async function fetchHostProperties(userId: number, perPage = 50): Promise
     const requests: Array<Promise<Awaited<ReturnType<typeof getProperties>>>> = [];
 
     for (let page = 2; page <= pages; page += 1) {
-      requests.push(getProperties({ page, per_page: perPage }));
+      requests.push(getProperties({ page, per_page: perPage, include_all_statuses: true }));
     }
 
     const responses = await Promise.all(requests);
