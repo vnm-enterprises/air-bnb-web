@@ -7,6 +7,7 @@ import { Star, Heart, ChevronRight } from "lucide-react";
 import { getProperties } from "@/infrastructure/services/property-service";
 import type { Property } from "@/infrastructure/services/property-service";
 import { useWishlist } from "@/hooks/useWishlist";
+import { resolveImageUrl } from "@/lib/image";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=600&q=80";
@@ -91,7 +92,7 @@ export default function CuratedCollections() {
           <div className="col-span-full text-center text-slate-500">No properties found</div>
         ) : (
           properties.map((property, index) => {
-            const imageSrc = property.images?.[0] || FALLBACK_IMAGE;
+            const imageSrc = resolveImageUrl(property.images?.[0], FALLBACK_IMAGE);
             const rating = Number.isFinite(property.rating_average)
               ? property.rating_average
               : 0;
@@ -109,6 +110,7 @@ export default function CuratedCollections() {
                     src={imageSrc}
                     alt={property.title}
                     fill
+                    unoptimized
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
