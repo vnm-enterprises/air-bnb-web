@@ -4,10 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Home,
-  LayoutGrid,
-  CalendarDays,
-  Wallet,
-  MessageSquare,
   Bell,
   Settings,
   Search,
