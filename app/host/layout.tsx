@@ -194,52 +194,54 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
       {profilePopupOpen && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/40"
+            className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-[1px]"
             onClick={() => setProfilePopupOpen(false)}
           />
 
-          <div className="fixed inset-y-0 left-60 z-50 w-[340px] border-l border-slate-200 bg-white p-5 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900">Profile</h2>
-              <button
-                onClick={() => setProfilePopupOpen(false)}
-                className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-slate-200 bg-[#f8fbfb] p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#2C5F5D] text-white grid place-items-center font-bold">
-                  {initials}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-                  <p className="text-xs text-slate-500 truncate">{user?.email || "Host account"}</p>
-                </div>
+          <div className="fixed inset-0 z-50 grid place-items-center p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-900">Host Profile</h2>
+                <button
+                  onClick={() => setProfilePopupOpen(false)}
+                  className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Close
+                </button>
               </div>
 
-              <div className="mt-5 grid gap-2">
-                <Link
-                  href="/profile"
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Account Settings
-                </Link>
-                <Link
-                  href="/host/listings"
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Manage Listings
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                >
-                  {loggingOut ? "Logging out..." : "Logout"}
-                </button>
+              <div className="mt-4 rounded-xl border border-[#dcebea] bg-gradient-to-b from-[#f3fbfb] to-white p-4">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-full bg-[#2C5F5D] text-sm font-bold text-white">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+                    <p className="truncate text-xs text-slate-500">{user?.email || "Host account"}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  <Link
+                    href="/profile"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Account Settings
+                  </Link>
+                  <Link
+                    href="/host/listings"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Manage Listings
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                  >
+                    {loggingOut ? "Logging out..." : "Logout"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
