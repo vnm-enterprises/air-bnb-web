@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createProperty, uploadPropertyImages } from "@/infrastructure/services/property-service";
+import RichTextDescriptionEditor from "@/components/common/RichTextDescriptionEditor";
+
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+}
 
 export default function AddPropertyBasicsPage() {
   const router = useRouter();
@@ -49,7 +54,7 @@ export default function AddPropertyBasicsPage() {
     setError(null);
 
     // Validation
-    if (!title || !desc || !address || !price) {
+    if (!title || !stripHtml(desc) || !address || !price) {
       setError("Please fill in all required fields");
       return;
     }
@@ -165,20 +170,12 @@ export default function AddPropertyBasicsPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-700">
-                    Description
-                  </label>
-                  <textarea
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    placeholder="Describe the unique features, atmosphere, and surroundings of your space..."
-                    className="mt-2 w-full min-h-[140px] px-3 py-2 rounded-md border border-slate-200 bg-white text-[12px] outline-none focus:border-slate-300 resize-none"
-                  />
-                  <div className="text-right text-[10px] text-slate-400 mt-2">
-                    {desc.length} / 500 characters
-                  </div>
-                </div>
+                <RichTextDescriptionEditor
+                  value={desc}
+                  onChange={setDesc}
+                  label="Description"
+                  maxLength={2000}
+                />
 
                 {/* Additional Fields */}
                 <div className="grid grid-cols-2 gap-4">
