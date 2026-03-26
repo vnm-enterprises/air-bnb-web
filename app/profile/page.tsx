@@ -1,123 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import { changePassword, updateProfile } from '@/infrastructure/services/auth-service';
+import { useProfileSettings } from '@/application/hooks/use-profile-settings';
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const {
+    user,
+    loading,
+    name,
+    setName,
+    currentPassword,
+    setCurrentPassword,
+    newPassword,
+    setNewPassword,
+    confirmPassword,
+    setConfirmPassword,
+    showCurrentPw,
+    setShowCurrentPw,
+    showNewPw,
+    setShowNewPw,
+    showConfirmPw,
+    setShowConfirmPw,
+    error,
+    success,
+    activeTab,
+    setActiveTab,
+    handleUpdateProfile,
+    handleChangePassword,
+    handleLogout,
+  } = useProfileSettings();
+
   const primaryRole = user?.roles?.[0];
   const roleLabel = primaryRole
     ? `${primaryRole.charAt(0).toUpperCase()}${primaryRole.slice(1)}`
     : '';
-
-  const [loading, setLoading] = useState(true);
-  const [name, setName] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPw, setShowCurrentPw] = useState(false);
-  const [showNewPw, setShowNewPw] = useState(false);
-  const [showConfirmPw, setShowConfirmPw] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-    } else {
-      setName(user?.name || '');
-      setLoading(false);
-    }
-  }, [isAuthenticated, user, router]);
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (!name.trim()) {
-      setError('Name is required');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await updateProfile({ name: name.trim() });
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update profile');
-      }
-
-      setSuccess(result.message || 'Profile updated successfully!');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    // Validation
-    if (!currentPassword) {
-      setError('Current password is required');
-      return;
-    }
-    if (!newPassword) {
-      setError('New password is required');
-      return;
-    }
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-    if (!/[A-Z]/.test(newPassword)) {
-      setError('Password must contain at least one uppercase letter');
-      return;
-    }
-    if (!/\d/.test(newPassword)) {
-      setError('Password must contain at least one number');
-      return;
-    }
-    if (!/[^A-Za-z0-9]/.test(newPassword)) {
-      setError('Password must contain at least one special character');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await changePassword({ password: newPassword });
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to change password');
-      }
-
-      setSuccess(result.message || 'Password changed successfully!');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
 
   if (loading) {
     return (
