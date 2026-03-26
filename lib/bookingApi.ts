@@ -12,6 +12,7 @@ export interface Booking {
   guest_count?: number;
   total_price: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  payment_status?: string;
   created_at: string;
   updated_at: string;
   property?: {
@@ -48,6 +49,11 @@ export interface BookingsResponse {
     bookings: number[];
     pagination: BookingsPagination;
   };
+}
+
+export interface DeleteBookingResponse {
+  success: boolean;
+  message?: string;
 }
 
 /**
@@ -187,9 +193,9 @@ export async function cancelBooking(id: number): Promise<BookingResponse> {
 /**
  * Delete a booking
  */
-export async function deleteBooking(id: number): Promise<any> {
+export async function deleteBooking(id: number): Promise<DeleteBookingResponse> {
   try {
-    const response = await api.delete(`/api/v1/bookings/${id}`);
+    const response = await api.delete<DeleteBookingResponse>(`/api/v1/bookings/${id}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting booking ${id}:`, error);
