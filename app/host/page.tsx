@@ -88,6 +88,7 @@ function getOverlappingNights(
 
 export default function HostDashboardPage() {
   const { isAuthenticated, isHost, loading, user } = useAuth();
+  const isHostUser = isHost();
   const [q, setQ] = useState("");
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -104,7 +105,7 @@ export default function HostDashboardPage() {
       return;
     }
 
-    if (!isAuthenticated || !isHost()) {
+    if (!isAuthenticated || !isHostUser) {
       setDataLoading(false);
       return;
     }
@@ -199,7 +200,7 @@ export default function HostDashboardPage() {
     return () => {
       active = false;
     };
-  }, [loading, isAuthenticated, isHost, user?.id]);
+  }, [loading, isAuthenticated, isHostUser, user?.id]);
 
   const rows = useMemo(() => {
     const x = q.trim().toLowerCase();
