@@ -4,13 +4,16 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import RichTextDescriptionEditor from "@/components/common/RichTextDescriptionEditor";
 import {
   getPropertyById,
   updateProperty,
   type Property,
 } from "@/infrastructure/services/property-service";
 
-type ListingStatus = "active" | "pending" | "hidden";
+type ListingStatus = "active" | "hidden";
+
+const AMENITY_OPTIONS = ["WiFi", "Kitchen", "Pool", "Parking", "AC", "TV", "Gym", "Hot Tub"];
 
 type EditFormState = {
   title: string;
@@ -21,7 +24,7 @@ type EditFormState = {
   bedrooms: string;
   bathrooms: string;
   status: ListingStatus;
-  amenities: string;
+  amenities: string[];
 };
 
 const INITIAL_FORM: EditFormState = {
@@ -32,8 +35,8 @@ const INITIAL_FORM: EditFormState = {
   maxGuests: "1",
   bedrooms: "1",
   bathrooms: "1",
-  status: "pending",
-  amenities: "",
+  status: "active",
+  amenities: [],
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -54,11 +57,7 @@ function normalizeStatus(status: string | undefined): ListingStatus {
     return "active";
   }
 
-  if (["hidden", "inactive", "rejected", "suspended"].includes(value)) {
-    return "hidden";
-  }
-
-  return "pending";
+  return "hidden";
 }
 
 function mapPropertyToForm(property: Property): EditFormState {
@@ -71,7 +70,9 @@ function mapPropertyToForm(property: Property): EditFormState {
     bedrooms: String(Math.max(1, Number(property.bedrooms || 1))),
     bathrooms: String(Math.max(1, Number(property.bathrooms || 1))),
     status: normalizeStatus(property.status),
-    amenities: Array.isArray(property.amenities) ? property.amenities.join(", ") : "",
+    amenities: Array.isArray(property.amenities)
+      ? property.amenities.filter((amenity) => typeof amenity === "string" && amenity.trim().length > 0)
+      : [],
   };
 }
 
@@ -85,6 +86,7 @@ export default function EditPropertyPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [form, setForm] = useState<EditFormState>(INITIAL_FORM);
+  const [customAmenity, setCustomAmenity] = useState("");
 
   const propertyId = useMemo(() => {
     const raw = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -143,11 +145,34 @@ export default function EditPropertyPage() {
     };
   }, [authLoading, isAuthenticated, isHost, propertyId, router]);
 
-  const handleChange = (field: keyof EditFormState, value: string) => {
+  const handleChange = (field: Exclude<keyof EditFormState, "amenities">, value: string) => {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
+  };
+
+  const toggleAmenity = (amenity: string) => {
+    setForm((current) => ({
+      ...current,
+      amenities: current.amenities.includes(amenity)
+        ? current.amenities.filter((item) => item !== amenity)
+        : [...current.amenities, amenity],
+    }));
+  };
+
+  const addCustomAmenity = () => {
+    const value = customAmenity.trim();
+
+    if (!value || form.amenities.includes(value)) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      amenities: [...current.amenities, value],
+    }));
+    setCustomAmenity("");
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -162,11 +187,6 @@ export default function EditPropertyPage() {
     setError(null);
     setSuccess(null);
 
-    const amenities = form.amenities
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
     try {
       await updateProperty(propertyId, {
         title: form.title.trim(),
@@ -177,7 +197,7 @@ export default function EditPropertyPage() {
         bedrooms: Math.max(1, Number(form.bedrooms || 1)),
         bathrooms: Math.max(1, Number(form.bathrooms || 1)),
         status: form.status,
-        amenities,
+        amenities: form.amenities,
       });
 
       setSuccess("Property updated successfully.");
@@ -244,13 +264,11 @@ export default function EditPropertyPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-700">Description</label>
-              <textarea
+              <RichTextDescriptionEditor
                 value={form.description}
-                onChange={(event) => handleChange("description", event.target.value)}
-                rows={5}
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400"
-                required
+                onChange={(value) => handleChange("description", value)}
+                label="Description"
+                maxLength={2000}
               />
             </div>
 
@@ -280,11 +298,10 @@ export default function EditPropertyPage() {
               <label className="text-xs font-semibold text-slate-700">Status</label>
               <select
                 value={form.status}
-                onChange={(event) => handleChange("status", event.target.value)}
+                onChange={(event) => handleChange("status", event.target.value as ListingStatus)}
                 className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400"
               >
                 <option value="active">Active</option>
-                <option value="pending">Pending</option>
                 <option value="hidden">Hidden</option>
               </select>
             </div>
@@ -327,13 +344,53 @@ export default function EditPropertyPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-700">Amenities (comma separated)</label>
-              <input
-                value={form.amenities}
-                onChange={(event) => handleChange("amenities", event.target.value)}
-                placeholder="WiFi, Pool, Kitchen"
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400"
-              />
+              <label className="text-xs font-semibold text-slate-700">Amenities</label>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {AMENITY_OPTIONS.map((amenity) => (
+                  <button
+                    key={amenity}
+                    type="button"
+                    onClick={() => toggleAmenity(amenity)}
+                    className={`px-3 py-1.5 text-[11px] rounded-md border transition ${
+                      form.amenities.includes(amenity)
+                        ? "bg-[#2C5F5D] text-white border-[#2C5F5D]"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    {amenity}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-3 flex gap-2">
+                <input
+                  value={customAmenity}
+                  onChange={(event) => setCustomAmenity(event.target.value)}
+                  placeholder="Add custom amenity"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomAmenity}
+                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Add
+                </button>
+              </div>
+
+              {form.amenities.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {form.amenities.map((amenity) => (
+                    <span
+                      key={amenity}
+                      className="inline-flex items-center rounded-full bg-[#edf5f5] px-3 py-1 text-xs font-medium text-[#2C5F5D]"
+                    >
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
