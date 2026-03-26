@@ -92,6 +92,7 @@ function getApiMessage(error: unknown, fallback: string): string {
 
 export default function HostBookingsPage() {
   const { isAuthenticated, isHost, loading: authLoading } = useAuth();
+  const isHostUser = isHost();
 
   const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("All");
   const [query, setQuery] = useState("");
@@ -106,7 +107,7 @@ export default function HostBookingsPage() {
       return;
     }
 
-    if (!isAuthenticated || !isHost()) {
+    if (!isAuthenticated || !isHostUser) {
       setDataLoading(false);
       return;
     }
@@ -173,7 +174,7 @@ export default function HostBookingsPage() {
     return () => {
       active = false;
     };
-  }, [authLoading, isAuthenticated, isHost]);
+  }, [authLoading, isAuthenticated, isHostUser]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
