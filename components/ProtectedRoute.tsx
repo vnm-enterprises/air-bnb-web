@@ -7,12 +7,26 @@ import { useAuth, UserRole } from '@/context/AuthContext';
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredRole?: UserRole;
+  requiredRoles?: UserRole[];
+  redirectTo?: string;
+  unauthorizedRedirectTo?: string;
   fallback?: ReactNode;
 }
 
-export function ProtectedRoute({ children, requiredRole, fallback }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requiredRole,
+  requiredRoles,
+  redirectTo = '/login',
+  unauthorizedRedirectTo = '/properties',
+  fallback,
+}: ProtectedRouteProps) {
   const { isAuthenticated, loading, hasRole } = useAuth();
   const router = useRouter();
+
+  const roleRequirements = requiredRoles || (requiredRole ? [requiredRole] : []);
+  const hasRequiredRole =
+    roleRequirements.length === 0 || roleRequirements.some((role) => hasRole(role));
 
   useEffect(() => {
     if (loading) {
@@ -20,14 +34,14 @@ export function ProtectedRoute({ children, requiredRole, fallback }: ProtectedRo
     }
 
     if (!isAuthenticated) {
-      router.replace('/login');
+      router.replace(redirectTo);
       return;
     }
 
-    if (requiredRole && !hasRole(requiredRole)) {
-      router.replace('/properties');
+    if (!hasRequiredRole) {
+      router.replace(unauthorizedRedirectTo);
     }
-  }, [hasRole, isAuthenticated, loading, requiredRole, router]);
+  }, [hasRequiredRole, isAuthenticated, loading, redirectTo, router, unauthorizedRedirectTo]);
 
   if (loading) {
     return fallback || <LoadingSpinner />;
@@ -37,7 +51,7 @@ export function ProtectedRoute({ children, requiredRole, fallback }: ProtectedRo
     return null;
   }
 
-  if (requiredRole && !hasRole(requiredRole)) {
+  if (!hasRequiredRole) {
     return null;
   }
 
