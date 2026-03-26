@@ -1,77 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthAlert from "@/components/auth/AuthAlert";
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useLoginForm } from "@/application/hooks/use-login-form";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const infoMessage = useMemo(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-
-    return new URLSearchParams(window.location.search).get("message") || "";
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/properties");
-    }
-  }, [isAuthenticated, router]);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const normalizedEmail = email.trim().toLowerCase();
-    setError("");
-
-    if (!normalizedEmail) {
-      setError("Please enter your email address.");
-      return;
-    }
-
-    if (!isValidEmail(normalizedEmail)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    if (!password) {
-      setError("Please enter your password.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const result = await login(normalizedEmail, password);
-
-      if (!result.success) {
-        setError(result.message || "Unable to sign in right now. Please try again.");
-        return;
-      }
-
-      router.push("/properties");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    showPassword,
+    setShowPassword,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    loading,
+    error,
+    infoMessage,
+    handleSubmit,
+  } = useLoginForm();
 
   return (
     <AuthLayout
@@ -94,12 +43,12 @@ export default function LoginPage() {
 
         <div>
           <label className="text-xs font-semibold text-slate-700">Email Address</label>
-          <input
+          <Input
             type="email"
             placeholder="name@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-4 outline-none focus:border-[#2C5F5D]"
+            className="mt-2"
             disabled={loading}
             autoComplete="email"
           />
@@ -117,12 +66,12 @@ export default function LoginPage() {
           </div>
 
           <div className="relative mt-2">
-            <input
+            <Input
               type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-11 w-full rounded-lg border border-slate-200 px-4 pr-12 outline-none focus:border-[#2C5F5D]"
+              className="pr-12"
               disabled={loading}
               autoComplete="current-password"
             />
@@ -143,13 +92,13 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="h-12 w-full rounded-lg bg-[#2C5F5D] font-semibold text-white transition hover:bg-[#244f4d] disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-12 w-full"
         >
           {loading ? "Signing In..." : "Sign In"}
-        </button>
+        </Button>
       </form>
     </AuthLayout>
   );
