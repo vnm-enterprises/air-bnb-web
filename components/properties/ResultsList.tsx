@@ -18,6 +18,10 @@ interface ResultsListProps {
   onRetry?: () => void;
 }
 
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function PropertySkeleton() {
   return (
     <div className="overflow-hidden rounded-3xl border border-[#d8e8e7] bg-white p-4 shadow-sm">
@@ -146,7 +150,7 @@ export default function ResultsList({
                     </div>
 
                     <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-slate-600">
-                      {property.description}
+                      {stripHtml(property.description || "") || "No description provided."}
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
