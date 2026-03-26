@@ -57,6 +57,11 @@ export function useSupportForm() {
 
       setBanner({ type: "success", message: result.message });
       setForm(initialForm);
+    } catch {
+      setBanner({
+        type: "error",
+        message: "Support service is currently unavailable. Please try again shortly.",
+      });
     } finally {
       setSubmitting(false);
     }
