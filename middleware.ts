@@ -10,9 +10,10 @@ const PUBLIC_ROUTES = [
   '/reset-password',
 ];
 
-const AUTH_REQUIRED_PREFIXES = ['/dashboard', '/profile', '/booking', '/checkout', '/wishlist', '/host'];
+const AUTH_REQUIRED_PREFIXES = ['/dashboard', '/profile', '/booking', '/checkout', '/wishlist', '/host', '/admin'];
 
 const HOST_REQUIRED_PREFIXES = ['/host'];
+const ADMIN_REQUIRED_PREFIXES = ['/admin'];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
@@ -24,6 +25,10 @@ function isAuthRequired(pathname: string): boolean {
 
 function requiresHostRole(pathname: string): boolean {
   return HOST_REQUIRED_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+function requiresAdminRole(pathname: string): boolean {
+  return ADMIN_REQUIRED_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
 /**
@@ -62,6 +67,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (requiresHostRole(pathname) && hasSession && !roles.includes('host')) {
+    return NextResponse.redirect(new URL('/properties', request.url));
+  }
+
+  if (requiresAdminRole(pathname) && hasSession && !roles.includes('administrator')) {
     return NextResponse.redirect(new URL('/properties', request.url));
   }
 
