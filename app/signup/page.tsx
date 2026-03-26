@@ -1,146 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { signup } from "@/infrastructure/services/auth-service";
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthAlert from "@/components/auth/AuthAlert";
-
-type Role = "traveler" | "host";
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function getPasswordValidationError(password: string): string {
-  if (password.length < 8) {
-    return "Password must be at least 8 characters long.";
-  }
-
-  if (!/[A-Z]/.test(password)) {
-    return "Password must include at least one uppercase letter.";
-  }
-
-  if (!/\d/.test(password)) {
-    return "Password must include at least one number.";
-  }
-
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    return "Password must include at least one special character.";
-  }
-
-  return "";
-}
-
-function passwordStrength(password: string): { pct: number; label: string } {
-  const hasLower = /[a-z]/.test(password);
-  const hasUpper = /[A-Z]/.test(password);
-  const hasNum = /\d/.test(password);
-  const hasSym = /[^A-Za-z0-9]/.test(password);
-
-  let score = 0;
-  if (password.length >= 8) score += 1;
-  if (password.length >= 12) score += 1;
-  if (hasLower) score += 1;
-  if (hasUpper) score += 1;
-  if (hasNum) score += 1;
-  if (hasSym) score += 1;
-
-  const pct = Math.min(100, Math.round((score / 6) * 100));
-
-  if (pct >= 70) {
-    return { pct: Math.max(10, pct), label: "STRONG" };
-  }
-
-  if (pct >= 45) {
-    return { pct: Math.max(10, pct), label: "MEDIUM" };
-  }
-
-  return { pct: Math.max(10, pct), label: "WEAK" };
-}
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useSignupForm } from "@/application/hooks/use-signup-form";
 
 export default function SignupPage() {
-  const router = useRouter();
-  const [role, setRole] = useState<Role>("traveler");
-  const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [agreedTerms, setAgreedTerms] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
-
-  const strength = useMemo(() => passwordStrength(password), [password]);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const normalizedName = name.trim();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    setError("");
-
-    if (!normalizedName) {
-      setError("Please enter your full name.");
-      return;
-    }
-
-    if (!normalizedEmail) {
-      setError("Please enter your email address.");
-      return;
-    }
-
-    if (!isValidEmail(normalizedEmail)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    const passwordError = getPasswordValidationError(password);
-    if (passwordError) {
-      setError(passwordError);
-      return;
-    }
-
-    if (!agreedTerms) {
-      setError("Please agree to the Terms of Service and Privacy Policy.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const result = await signup({
-        name: normalizedName,
-        email: normalizedEmail,
-        password,
-        role,
-      });
-
-      if (!result.success) {
-        setError(result.error || "Unable to create your account right now.");
-        return;
-      }
-
-      setSuccess(true);
-      setName("");
-      setEmail("");
-      setPassword("");
-      setAgreedTerms(false);
-
-      setTimeout(() => {
-        router.push(
-          `/login?message=${encodeURIComponent("Please check your email to verify your account")}`
-        );
-      }, 1800);
-    } catch {
-      setError("Something went wrong while creating your account. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    role,
+    setRole,
+    showPassword,
+    setShowPassword,
+    name,
+    setName,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    agreedTerms,
+    setAgreedTerms,
+    loading,
+    error,
+    success,
+    strength,
+    handleSubmit,
+  } = useSignupForm();
 
   return (
     <AuthLayout
@@ -188,12 +75,12 @@ export default function SignupPage() {
 
           <div>
             <label className="text-xs font-semibold text-slate-700">Full Name</label>
-            <input
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               type="text"
               placeholder="e.g. Alex Johnson"
-              className="mt-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-300"
+              className="mt-2 h-10"
               disabled={loading}
               autoComplete="name"
             />
@@ -201,12 +88,12 @@ export default function SignupPage() {
 
           <div>
             <label className="text-xs font-semibold text-slate-700">Email Address</label>
-            <input
+            <Input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               type="email"
               placeholder="alex@example.com"
-              className="mt-2 h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-300"
+              className="mt-2 h-10"
               disabled={loading}
               autoComplete="email"
             />
@@ -225,12 +112,12 @@ export default function SignupPage() {
             </div>
 
             <div className="relative mt-2">
-              <input
+              <Input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="Minimum 8 characters"
-                className="h-10 w-full rounded-md border border-slate-200 px-3 pr-10 text-sm outline-none focus:border-slate-300"
+                className="h-10 pr-10"
                 disabled={loading}
                 autoComplete="new-password"
               />
@@ -271,13 +158,13 @@ export default function SignupPage() {
             </span>
           </label>
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="h-11 w-full rounded-md bg-[#2C5F5D] text-sm font-semibold text-white transition hover:bg-[#244f4d] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 w-full rounded-md text-sm"
           >
             {loading ? "Creating Account..." : "Create Account"}
-          </button>
+          </Button>
         </form>
       )}
     </AuthLayout>
