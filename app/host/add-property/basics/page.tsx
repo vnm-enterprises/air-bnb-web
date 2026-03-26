@@ -7,16 +7,6 @@ import { ChevronDown, MapPin, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createProperty, uploadPropertyImages } from "@/infrastructure/services/property-service";
 
-type Step = { n: number; label: string };
-
-const STEPS: Step[] = [
-  { n: 1, label: "Basics" },
-  { n: 2, label: "Photos" },
-  { n: 3, label: "Amenities" },
-  { n: 4, label: "Pricing" },
-  { n: 5, label: "Review" },
-];
-
 export default function AddPropertyBasicsPage() {
   const router = useRouter();
   const { isAuthenticated, isHost } = useAuth();
@@ -116,89 +106,20 @@ export default function AddPropertyBasicsPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f4f4] text-slate-900">
-      {/* Top Nav */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition">
-            <div className="text-slate-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                <path
-                  d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold">HostStay</span>
-          </Link>
-
-          <nav className="hidden sm:flex items-center gap-6 text-[11px] font-semibold text-slate-600">
-            <Link href="/" className="hover:text-slate-900">
-              Home
-            </Link>
-
-            <Link href="/host" className="hover:text-slate-900">
-              Dashboard
-            </Link>
-            <Link href="/host/bookings" className="hover:text-slate-900">
-              Bookings
-            </Link>
-            <Link href="/host/inbox" className="hover:text-slate-900">
-              Inbox
-            </Link>
-            <Link href="/host/properties" className="hover:text-slate-900">
-              Properties
-            </Link>
-          </nav>
-
-          <div className="w-7 h-7 rounded-full bg-orange-200 flex items-center justify-center text-[11px] font-bold text-slate-700">
-            🙂
-          </div>
-        </div>
-      </header>
-
       {/* Page */}
       <main>
         <div className="max-w-6xl mx-auto px-6 py-8">
           {/* Header row */}
           <div className="flex items-start justify-between gap-6">
             <div>
-              <h1 className="text-2xl font-bold">Add New Property</h1>
+              <h1 className="text-2xl font-bold">Create New Listing</h1>
+              <p className="mt-2 text-sm text-slate-600">
+                Everything is completed in this single screen: details, amenities, images, and publishing.
+              </p>
             </div>
-            <button className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 transition">
-              Save &amp; Exit
-            </button>
-          </div>
-
-          {/* Stepper */}
-          <div className="mt-4">
-            <div className="grid grid-cols-5 gap-4 text-[11px] text-slate-500">
-              {STEPS.map((s) => (
-                <div key={s.n} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={[
-                        "w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-bold",
-                        s.n === 1
-                          ? "bg-[#2C5F5D] border-[#2C5F5D] text-white"
-                          : "bg-white border-slate-200 text-slate-500",
-                      ].join(" ")}
-                    >
-                      {s.n}
-                    </span>
-                    <span className={s.n === 1 ? "font-semibold text-slate-900" : ""}>
-                      {s.label}
-                    </span>
-                  </div>
-
-                  <div className="h-1 rounded-full bg-slate-200 overflow-hidden">
-                    <div
-                      className="h-full bg-[#2C5F5D]"
-                      style={{ width: s.n === 1 ? "100%" : "0%" }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <span className="rounded-full border border-[#cde2e1] bg-[#eef7f7] px-3 py-1 text-[11px] font-semibold text-[#2C5F5D]">
+              Single-step publishing
+            </span>
           </div>
 
           {/* Two columns */}
