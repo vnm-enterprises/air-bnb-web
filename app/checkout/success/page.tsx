@@ -4,7 +4,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { CheckCircle2, CalendarDays, CreditCard, Home, User, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { getBookingById } from "@/infrastructure/services/booking-service";
 import { getPropertyById } from "@/infrastructure/services/property-service";
 
@@ -71,7 +71,7 @@ function statusMessage(status: string): string {
   return "Your booking is pending host approval. We will notify you once it is confirmed.";
 }
 
-export default function SuccessPage() {
+function SuccessPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = Number(searchParams.get("bookingId") || 0);
@@ -281,5 +281,28 @@ export default function SuccessPage() {
 
       <Footer />
     </>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Header />
+          <main className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-white py-16 px-6">
+            <div className="max-w-3xl mx-auto">
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+                <Loader2 className="h-8 w-8 animate-spin text-[#306966] mx-auto" />
+                <p className="mt-4 text-sm text-slate-500">Loading booking confirmation...</p>
+              </div>
+            </div>
+          </main>
+          <Footer />
+        </>
+      }
+    >
+      <SuccessPageContent />
+    </Suspense>
   );
 }
