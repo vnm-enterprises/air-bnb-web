@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { getHostBookings, getBookingById, type Booking } from "@/infrastructure/services/booking-service";
-import { getProperties, getPropertyById, type Property } from "@/infrastructure/services/property-service";
 import { MoreHorizontal, Search } from "lucide-react";
+import {
+  fetchHostBookingsDetailed,
+  fetchHostProperties,
+  fetchPropertyMap,
+} from "@/infrastructure/services/host-dashboard-service";
 
 type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
 
@@ -97,7 +100,17 @@ export default function HostDashboardPage() {
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (loading || !isAuthenticated || !isHost()) {
+    if (loading) {
+      return;
+    }
+
+    if (!isAuthenticated || !isHost()) {
+      setDataLoading(false);
+      return;
+    }
+
+    if (!user?.id) {
+      setDataLoading(false);
       return;
     }
 
@@ -108,121 +121,27 @@ export default function HostDashboardPage() {
       setDataError(null);
 
       try {
-        const hostBookingsResponse = await getHostBookings({ page: 1, per_page: 20 });
-        const hostBookingsPayload: unknown = hostBookingsResponse?.data;
+        const normalizedBookings = await fetchHostBookingsDetailed(20);
 
-        let bookingIds: number[] = [];
-        let bookingItems: Booking[] = [];
-
-        if (Array.isArray(hostBookingsPayload)) {
-          const first = hostBookingsPayload[0];
-          if (typeof first === "number") {
-            bookingIds = hostBookingsPayload.filter(
-              (id): id is number => typeof id === "number"
-            );
-          } else {
-            bookingItems = hostBookingsPayload as Booking[];
-          }
-        } else if (
-          typeof hostBookingsPayload === "object" &&
-          hostBookingsPayload !== null &&
-          Array.isArray((hostBookingsPayload as Record<string, unknown>).bookings)
-        ) {
-          const payload = hostBookingsPayload as Record<string, unknown[]>;
-          const first = payload.bookings[0];
-          if (typeof first === "number") {
-            bookingIds = payload.bookings as number[];
-          } else {
-            bookingItems = payload.bookings as Booking[];
-          }
-        }
-
-        if (bookingIds.length > 0) {
-          const detailResponses = await Promise.all(
-            bookingIds.map(async (id) => {
-              try {
-                const res = await getBookingById(id);
-                return res.data;
-              } catch {
-                return null;
-              }
-            })
-          );
-
-          bookingItems = detailResponses.filter((item): item is Booking => item !== null);
-        }
-
-        const normalizedBookings = bookingItems
-          .map((booking) => ({
-            id: Number(booking.id),
-            property_id: Number(booking.property_id),
-            traveler_id: Number(booking.traveler_id ?? booking.user_id ?? 0),
-            traveler_name:
-              typeof booking.traveler_name === "string" ? booking.traveler_name.trim() : "",
-            check_in: String(booking.check_in ?? ""),
-            check_out: String(booking.check_out ?? ""),
-            guest_count: Number(booking.guest_count ?? booking.guests ?? 0),
-            total_price: Number(booking.total_price ?? 0),
-            status: String(booking.status ?? "pending").toLowerCase(),
-          }))
-          .filter((booking) => booking.id > 0 && booking.property_id > 0);
-
-        const propertyIds = Array.from(
-          new Set(normalizedBookings.map((booking) => booking.property_id))
-        );
-
-        const propertyEntries = await Promise.all(
-          propertyIds.map(async (propertyId) => {
-            try {
-              const propertyResponse = await getPropertyById(propertyId);
-              return [propertyId, propertyResponse.data] as const;
-            } catch {
-              return [propertyId, null] as const;
-            }
-          })
-        );
-
-        const propertyMap = new Map<number, Property>(
-          propertyEntries.filter(
-            (entry): entry is readonly [number, Property] => entry[1] !== null
-          )
-        );
+        const propertyIds = normalizedBookings.map((booking) => booking.propertyId);
+        const propertyMap = await fetchPropertyMap(propertyIds);
 
         const rowsFromApi: RecentBooking[] = normalizedBookings.map((booking) => {
-          const property = propertyMap.get(booking.property_id);
-          const guestName = booking.traveler_name || "Guest";
+          const property = propertyMap.get(booking.propertyId);
+          const guestName = booking.travelerName || "Guest";
 
           return {
             id: String(booking.id),
             guest: guestName,
-            guestsMeta: `${booking.guest_count || 0} guests`,
-            property: property?.title || `Property #${booking.property_id}`,
+            guestsMeta: `${booking.guestCount || 0} guests`,
+            property: property?.title || `Property #${booking.propertyId}`,
             location: property?.location || "Location unavailable",
-            dates: formatDateRange(booking.check_in, booking.check_out),
-            amount: formatCurrency(booking.total_price),
+            dates: formatDateRange(booking.checkIn, booking.checkOut),
+            amount: formatCurrency(booking.totalPrice),
             status: toDashboardStatus(booking.status),
           };
         });
-
-        const firstPropertiesPage = await getProperties({ page: 1, per_page: 50 });
-        const propertiesPageCount = firstPropertiesPage.data.pagination.pages || 1;
-
-        const allProperties = [...firstPropertiesPage.data.properties];
-        if (propertiesPageCount > 1) {
-          const propertyPageRequests: Promise<{ data: { properties: typeof allProperties } }>[] = [];
-          for (let page = 2; page <= propertiesPageCount; page += 1) {
-            propertyPageRequests.push(getProperties({ page, per_page: 50 }));
-          }
-
-          const additionalPages = await Promise.all(propertyPageRequests);
-          additionalPages.forEach((pageRes) => {
-            allProperties.push(...pageRes.data.properties);
-          });
-        }
-
-        const hostProperties = allProperties.filter(
-          (property) => property.host_id === user?.id
-        );
+        const hostProperties = await fetchHostProperties(user.id, 50);
 
         const confirmedBookings = normalizedBookings.filter(
           (booking) => toDashboardStatus(booking.status) === "Confirmed"
@@ -237,15 +156,15 @@ export default function HostDashboardPage() {
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
         const monthlyEarnings = confirmedBookings.reduce((sum, booking) => {
-          const checkIn = new Date(booking.check_in);
+          const checkIn = new Date(booking.checkIn);
           if (checkIn >= monthStart && checkIn < monthEnd) {
-            return sum + booking.total_price;
+            return sum + booking.totalPrice;
           }
           return sum;
         }, 0);
 
         const bookedNights = confirmedBookings.reduce((sum, booking) => {
-          return sum + getOverlappingNights(booking.check_in, booking.check_out, monthStart, monthEnd);
+          return sum + getOverlappingNights(booking.checkIn, booking.checkOut, monthStart, monthEnd);
         }, 0);
 
         const occupancyRate = hostProperties.length
