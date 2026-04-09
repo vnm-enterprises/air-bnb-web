@@ -1,6 +1,6 @@
-# AirBnB Web Frontend
+# PropBnb Web Frontend
 
-Next.js 16 frontend for the AirBnB-like booking product, organized with a clean architecture approach for long-term maintainability.
+Next.js 16 frontend for the PropBnb booking product, organized with a clean architecture approach for long-term maintainability.
 
 ## Run Locally
 
