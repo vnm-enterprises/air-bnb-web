@@ -436,26 +436,33 @@ export default function PropertyPage() {
     <>
       <Header />
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-start gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">{property.title}</h1>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <div className="rounded-3xl  p-5 sm:p-7 ">
+          <div className="flex flex-col gap-5 sm:gap-6 lg:flex-row lg:justify-between lg:items-start">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#0f2f31]">
+                {property.title}
+              </h1>
 
-            <div className="flex items-center gap-3 text-sm mt-2">
-              <Star size={14} className="fill-black" />
-              {ratingText} ({reviewCount} reviews)
-              <span className="text-gray-600">• {property.location || "Location unavailable"}</span>
+              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-base text-slate-700 mt-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-[#d1e6e3] px-3 py-1.5">
+                  <Star size={14} className="fill-[#1e5f5c] text-[#1e5f5c]" />
+                  {ratingText} ({reviewCount} reviews)
+                </span>
+                <span className="inline-flex items-center rounded-full bg-white border border-[#d1e6e3] px-3 py-1.5 text-slate-600">
+                  {property.location || "Location unavailable"}
+                </span>
+              </div>
             </div>
-          </div>
 
-          <div className="flex gap-6 text-sm">
+            <div className="flex gap-3 text-sm">
             <button
               onClick={() => {
                 if (typeof navigator !== "undefined" && navigator.clipboard) {
                   void navigator.clipboard.writeText(window.location.href);
                 }
               }}
-              className="flex items-center gap-2 hover:underline"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
             >
               <Share2 size={16} />
               Share
@@ -466,35 +473,36 @@ export default function PropertyPage() {
                 if (canUseWishlist) {
                   void toggleWishlist(propertyId);
                 } else {
-                  router.push('/login');
+                  router.push("/login");
                 }
               }}
               disabled={isProcessing(propertyId)}
-              className="flex items-center gap-2 hover:underline disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full border border-[#2f6d6a] bg-[#2f6d6a] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#255a58] disabled:opacity-60"
             >
               <Heart
                 size={16}
-                className={isInWishlist(propertyId) ? "fill-red-500 text-red-500" : ""}
+                className={isInWishlist(propertyId) ? "fill-white text-white" : ""}
               />
               {isInWishlist(propertyId) ? "Saved" : "Save"}
             </button>
           </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 mt-6 rounded-2xl overflow-hidden">
-          <div className="col-span-2 row-span-2 h-[420px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-7 rounded-3xl overflow-hidden">
+          <div className="sm:col-span-2 sm:row-span-2 h-105 sm:h-120 xl:h-130 overflow-hidden rounded-2xl">
             <img
               src={imageUrls[0]}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition duration-700 hover:scale-[1.03]"
               alt={property.title}
             />
           </div>
 
           {(imageUrls.length > 1 ? imageUrls.slice(1, 5) : [FALLBACK_IMAGE, FALLBACK_IMAGE, FALLBACK_IMAGE, FALLBACK_IMAGE]).map((image, index) => (
-            <div key={`${image}-${index}`} className="h-[205px]">
+            <div key={`${image}-${index}`} className="h-56 sm:h-60 xl:h-63 overflow-hidden rounded-2xl">
               <img
                 src={image}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition duration-700 hover:scale-[1.04]"
                 alt={`${property.title} image ${index + 2}`}
               />
             </div>
@@ -503,10 +511,15 @@ export default function PropertyPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 mt-12">
           <div className="lg:col-span-2 space-y-10">
-            <div>
-              <h2 className="text-lg font-semibold">Entire property hosted by {hostName}</h2>
-              <p className="text-sm text-gray-600 mt-1">
+            <div className="rounded-2xl border border-[#d9ece9] bg-linear-to-br from-[#f3fbfa] to-white p-6 sm:p-7 shadow-sm">
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#123c3a]">
+                Entire property hosted by {hostName}
+              </h2>
+              <p className="text-base sm:text-lg text-slate-600 mt-2">
                 {property.max_guests} guests · {property.bedrooms} bedrooms · {beds} beds · {property.bathrooms} baths
+              </p>
+              <p className="text-sm sm:text-base text-slate-500 mt-3">
+                A refined stay designed for calm mornings, productive afternoons, and cozy evenings.
               </p>
             </div>
 
@@ -522,13 +535,20 @@ export default function PropertyPage() {
             <hr />
 
             <div>
-              <h3 className="text-lg font-semibold mb-6">What this place offers</h3>
+              <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#123c3a] mb-6">
+                What this place offers
+              </h3>
 
               {amenities.length > 0 ? (
                 <>
-                  <div className="grid grid-cols-2 gap-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {(showAllAmenities ? amenities : amenities.slice(0, 4)).map((amenity) => (
-                      <div key={amenity}>{amenity}</div>
+                      <div
+                        key={amenity}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-700"
+                      >
+                        {amenity}
+                      </div>
                     ))}
                   </div>
 
@@ -551,7 +571,9 @@ export default function PropertyPage() {
             <hr />
 
             <div>
-              <h3 className="text-lg font-semibold mb-6">Guest reviews</h3>
+              <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#123c3a] mb-6">
+                Guest reviews
+              </h3>
 
               {reviewsLoading ? (
                 <p className="text-sm text-gray-500">Loading reviews...</p>
@@ -613,7 +635,7 @@ export default function PropertyPage() {
                               }))
                             }
                             placeholder="Write a reply to this guest"
-                            className="w-full min-h-[90px] rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                            className="w-full min-h-22.5 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
                           />
                           <button
                             onClick={() => void handleHostReply(review.id)}
@@ -686,7 +708,7 @@ export default function PropertyPage() {
                 </div>
               </div>
 
-              <div className="mt-6 border rounded-xl p-4">
+              <div className="mt-6 rounded-2xl border border-[#cfe3e0] bg-linear-to-b from-white to-[#f2f9f8] p-4 shadow-inner">
                 <DayPicker
                   mode="range"
                   selected={range}
@@ -694,9 +716,33 @@ export default function PropertyPage() {
                   disabled={disabledDateMatchers}
                   excludeDisabled
                   fromDate={earliestBookableDate}
-                  modifiersClassNames={{ disabled: "booking-day-unavailable" }}
+                  className="w-full"
+                  classNames={{
+                    months: "w-full",
+                    month: "w-full",
+                    caption: "mb-3 flex items-center justify-between px-2",
+                    caption_label: "text-lg font-semibold text-[#123c3a]",
+                    nav: "flex items-center gap-1",
+                    nav_button:
+                      "h-8 w-8 rounded-full border border-[#bdd9d5] bg-white text-[#2f6d6a] transition hover:bg-[#eaf5f3]",
+                    table: "w-full border-collapse",
+                    head_row: "flex",
+                    head_cell:
+                      "h-9 w-10 text-[12px] font-semibold uppercase tracking-wide text-slate-500 flex items-center justify-center",
+                    row: "mt-1 flex w-full",
+                    cell: "h-10 w-10 p-0 text-sm",
+                    day: "h-10 w-10 rounded-full text-sm font-medium text-slate-700 transition hover:bg-[#e8f4f2]",
+                  }}
+                  modifiersClassNames={{
+                    disabled: "booking-day-unavailable text-slate-300",
+                    today: "font-bold text-[#1f5f5c]",
+                    selected: "bg-[#2f6d6a] text-white hover:bg-[#255a58]",
+                    range_start: "bg-[#2f6d6a] text-white rounded-l-full",
+                    range_end: "bg-[#2f6d6a] text-white rounded-r-full",
+                    range_middle: "bg-[#d8ecea] text-[#1b5452]",
+                  }}
                 />
-                <p className="mt-2 text-xs text-gray-500">Unavailable dates are greyed out.</p>
+                <p className="mt-2 text-xs font-medium text-slate-500">Unavailable dates are greyed out.</p>
               </div>
 
               <div className="mt-4">
@@ -778,7 +824,7 @@ export default function PropertyPage() {
                     <span>${cleaningFee}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Staybnb service fee</span>
+                    <span>PropBnb service fee</span>
                     <span>${serviceFee}</span>
                   </div>
                   <hr />

@@ -19,6 +19,15 @@
 
 body {
   font-family: var(--font-display);
+  min-height: 100vh;
+  position: relative;
+  background-color: #f8fbfa;
+  background-image:
+    radial-gradient(circle at 10% 8%, rgba(166, 223, 212, 0.6), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(224, 245, 236, 0.7), transparent 30%),
+    radial-gradient(circle at 16% 82%, rgba(247, 231, 204, 0.5), transparent 24%),
+    linear-gradient(180deg, #f2fbf8 0%, #ecf8f4 34%, #f4faf7 66%, #eef5f1 100%);
+  background-attachment: fixed;
 }
 
 .material-symbols-outlined {
@@ -42,6 +51,38 @@ body {
 }
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+@keyframes heroFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+.hero-float {
+  animation: heroFloat 6s ease-in-out infinite;
+}
+
+.hero-float-delay {
+  animation-delay: 1.8s;
+}
+
+@keyframes heroOrb {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translate3d(-8px, 10px, 0) scale(1.06);
+    opacity: 0.95;
+  }
+}
+
+.hero-orb {
+  animation: heroOrb 8s ease-in-out infinite;
 }
 
 /* Fix for Leaflet marker icons */

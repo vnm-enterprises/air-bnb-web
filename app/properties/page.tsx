@@ -242,7 +242,7 @@ function PropertiesPageContent() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-gradient-to-b from-[#eef5f5] via-white to-white">
+      <main className="min-h-screen ">
         <section className="border-b border-[#d8e8e7] bg-gradient-to-r from-[#2C5F5D] to-[#346f6d] px-6 py-14 text-white">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <div>

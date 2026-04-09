@@ -49,54 +49,64 @@ export default function NewsletterSection() {
 
   return (
     <>
-      <section className="relative py-20 sm:py-24">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <div className="mb-6 inline-flex size-16 items-center justify-center rounded-2xl bg-[#2E5E59]/10">
-            <Mail className="h-8 w-8 text-[#2E5E59]" />
-          </div>
+      <section className="relative py-22 sm:py-26">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-linear-to-b from-[#d6ece9]/70 to-transparent" />
 
-          <h3 className="mb-4 text-3xl font-black text-slate-900 sm:text-4xl">
-            Your next journey begins here
-          </h3>
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="relative overflow-hidden rounded-[34px] border border-[#d2e5e3] bg-linear-to-br from-[#f7fcfb] via-[#f2faf8] to-[#edf6f3] px-6 py-10 shadow-[0_24px_54px_rgba(15,23,42,0.1)] sm:px-10 sm:py-12">
+            <div className="pointer-events-none absolute -left-16 top-10 h-40 w-40 rounded-full bg-[#a9ded5]/28 blur-3xl" />
+            <div className="pointer-events-none absolute -right-12 bottom-8 h-40 w-40 rounded-full bg-[#d7ebe6]/60 blur-3xl" />
 
-          <p className="mb-8 text-base font-medium text-slate-500 sm:mb-10 sm:text-lg">
-            Subscribe to receive exclusive offers and handpicked travel guides.
-          </p>
+            <div className="relative mx-auto max-w-3xl text-center">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#cfe4e2] bg-white/85 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#2E5E59]">
+                <Mail className="h-4 w-4" />
+                Travel updates
+              </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl sm:flex-row"
-          >
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 rounded-xl border-none bg-transparent px-5 py-3 font-medium text-slate-900 outline-none sm:px-6 sm:py-4"
-              placeholder="Enter your email address"
-              type="email"
-              autoComplete="email"
-              required
-            />
+              <h3 className="mb-4 text-4xl font-black leading-tight tracking-[-0.02em] text-slate-900 sm:text-5xl">
+                Your next journey begins here
+              </h3>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-xl bg-[#2E5E59] px-8 py-3 font-bold text-white shadow-lg shadow-[#2C5F5D]/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70 sm:px-10 sm:py-4"
-            >
-              {submitting ? "Joining..." : "Join Now"}
-            </button>
-          </form>
+              <p className="mb-9 text-base font-medium leading-relaxed text-slate-600 sm:mb-10 sm:text-xl">
+                Subscribe to receive exclusive offers, insider city picks, and handpicked travel guides.
+              </p>
 
-          {error && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4" />
-              {error}
+              <form
+                onSubmit={handleSubmit}
+                className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-[#d5e6e4] bg-white/92 p-2 shadow-lg shadow-slate-900/8 sm:flex-row"
+              >
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 rounded-xl border-none bg-transparent px-5 py-3.5 text-base font-medium text-slate-900 outline-none placeholder:text-slate-400 sm:px-6"
+                  placeholder="Enter your email address"
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="rounded-xl bg-linear-to-r from-[#2E5E59] to-[#255451] px-8 py-3.5 text-base font-bold text-white shadow-lg shadow-[#2C5F5D]/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70 sm:px-10"
+                >
+                  {submitting ? "Joining..." : "Join Now"}
+                </button>
+              </form>
+
+              {error && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </section>
 
       {open && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center px-4">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn"
             onClick={() => setOpen(false)}

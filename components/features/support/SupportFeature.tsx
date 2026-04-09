@@ -35,7 +35,7 @@ export function SupportFeature() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-linear-to-b from-[#eaf4f3] via-[#f6fbfb] to-white">
+      <main className="min-h-screen ">
         <section className="relative overflow-hidden px-6 pb-20 pt-16">
           <div className="absolute -left-20 top-6 h-72 w-72 rounded-full bg-[#2C5F5D]/14 blur-[90px]" />
           <div className="absolute -right-20 top-10 h-64 w-64 rounded-full bg-[#2C5F5D]/12 blur-[80px]" />

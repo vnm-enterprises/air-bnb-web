@@ -3,39 +3,48 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import { AuthProvider } from "@/context/AuthContext";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.propbnb.com";
 
 //TODO clean up te page and re validate propper metatags
 //TODO add a correct favicon
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  applicationName: "PropBnb",
   title: {
-    default: "Airbnb-style Stays | Find & Book Unique Places",
-    template: "%s | Airbnb-style Stays",
+    default: "PropBnb | Book unique stays and vacation rentals",
+    template: "%s | PropBnb",
   },
   description:
-    "Discover and book unique homes, apartments, and stays from trusted hosts. Easy booking, secure payments, and unforgettable experiences.",
+    "PropBnb helps travelers discover and book unique homes, apartments, and short stays with secure checkout and trusted hosts.",
   keywords: [
+    "PropBnb",
     "vacation rentals",
-    "short stay",
-    "airbnb alternative",
+    "holiday rentals",
+    "short stay booking",
     "holiday homes",
-    "book stays",
+    "book accommodation online",
     "travel accommodation",
+    "unique stays",
   ],
-  authors: [{ name: "MES" }],
-  creator: "MES",
+  authors: [{ name: "PropBnb" }],
+  creator: "PropBnb",
+  publisher: "PropBnb",
+  alternates: {
+    canonical: "/",
+  },
 
   openGraph: {
-    title: "Find & Book Unique Places to Stay",
+    title: "PropBnb | Find and book unique places to stay",
     description:
-      "Browse hand-picked homes and apartments. Book stays securely and travel with confidence.",
-    url: "https://airbnb.com",
-    siteName: "Airbnb-style Stays",
+      "Browse vacation rentals, apartments, and hand-picked stays on PropBnb. Book securely and travel with confidence.",
+    url: "/",
+    siteName: "PropBnb",
     images: [
       {
-        url: "https://airbnb.com/og-image.jpg",
+        url: "/hero-image.jpg",
         width: 1200,
         height: 630,
-        alt: "Discover unique places to stay",
+        alt: "PropBnb vacation rental discovery experience",
       },
     ],
     locale: "en_US",
@@ -44,15 +53,22 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "Find & Book Unique Places to Stay",
+    title: "PropBnb | Book unique stays",
     description:
-      "Discover unique stays, book securely, and travel smarter.",
-    images: ["https://airbnb.com/og-image.jpg"],
+      "Discover unique stays, book securely, and travel smarter with PropBnb.",
+    images: ["/hero-image.jpg"],
   },
 
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 
   viewport: "width=device-width, initial-scale=1",
@@ -65,7 +81,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-[#f6f4f4] text-slate-900 min-h-screen">
+      <body className="text-slate-900 min-h-screen">
         <AuthProvider>
           {children}
         </AuthProvider>
