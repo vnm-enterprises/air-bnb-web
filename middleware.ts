@@ -43,7 +43,7 @@ function requiresAdminRole(pathname: string): boolean {
  * This is because Next.js middleware runs server-side and cannot access
  * localStorage where JWT tokens are stored.
  */
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const hasSession = request.cookies.get('auth_session')?.value === '1';
   const roleCookie = request.cookies.get('auth_roles')?.value || '';
