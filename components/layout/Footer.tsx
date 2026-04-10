@@ -75,7 +75,7 @@ export default function Footer() {
                 rel="noopener noreferrer"
                 className="font-semibold text-[#2C5F5D] hover:underline"
               >
-                MES
+                thewebse
               </a>
             </div>
           </div>
