@@ -8,7 +8,9 @@ declare module 'axios' {
   }
 }
 
-const baseURL = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://backend.lodgifyhub.com/wp-json';
+// Always use same-origin path in the browser and let Next.js rewrites proxy it.
+// This avoids CORS failures when the upstream API does not expose ACAO headers.
+const baseURL = '/wp-json';
 const usesRestRoute = baseURL.includes('rest_route=');
 const AUTH_FREE_ROUTES = [
   '/api/v1/login',
