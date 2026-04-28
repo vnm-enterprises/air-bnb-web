@@ -17,9 +17,12 @@ export default function LoginPage() {
     password,
     setPassword,
     loading,
+    resendLoading,
     error,
     infoMessage,
+    resendMessage,
     handleSubmit,
+    handleResendVerification,
   } = useLoginForm();
 
   return (
@@ -40,6 +43,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-5">
         {infoMessage && <AuthAlert variant="info">{infoMessage}</AuthAlert>}
         {error && <AuthAlert variant="error">{error}</AuthAlert>}
+        {resendMessage && <AuthAlert variant="success">{resendMessage}</AuthAlert>}
 
         <div>
           <label className="text-xs font-semibold text-slate-700">Email Address</label>
@@ -99,6 +103,15 @@ export default function LoginPage() {
         >
           {loading ? "Signing In..." : "Sign In"}
         </Button>
+
+        <button
+          type="button"
+          onClick={handleResendVerification}
+          disabled={loading || resendLoading}
+          className="w-full text-sm font-semibold text-[#2C5F5D] hover:underline disabled:opacity-50"
+        >
+          {resendLoading ? "Resending verification email..." : "Resend verification email"}
+        </button>
       </form>
     </AuthLayout>
   );

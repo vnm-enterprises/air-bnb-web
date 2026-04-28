@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createBooking } from "@/infrastructure/services/booking-service";
+import { checkAvailability } from "@/infrastructure/services/property-service";
+import { markPaymentComplete } from "@/infrastructure/services/payment-service";
 
 type GuestForm = {
   firstName: string;
@@ -221,6 +223,30 @@ export default function CheckoutPage() {
 
       setStep("finalizing");
 
+      // Pre-flight availability check to avoid creating a booking that will conflict
+      try {
+        const avail = await checkAvailability(
+          bookingData.property_id,
+          bookingData.check_in,
+          bookingData.check_out
+        );
+
+        if (!avail.data || avail.data.available === false) {
+          // availability API returns success/message='OK' even when available=false;
+          // show a clear user-facing message instead of the API message.
+          setError('Dates unavailable. Please choose different dates.');
+          setLoading(false);
+          setStep('');
+          return;
+        }
+      } catch (e) {
+        // If availability check failed unexpectedly, surface a friendly message and abort.
+        setError('Failed to verify availability. Please try again.');
+        setLoading(false);
+        setStep('');
+        return;
+      }
+
       const response = await createBooking({
         property_id: bookingData.property_id,
         check_in: bookingData.check_in,
@@ -229,8 +255,15 @@ export default function CheckoutPage() {
       });
 
       if (response.success) {
+        const bookingId = response.data.booking_id;
+        const paymentResponse = await markPaymentComplete(bookingId);
+
+        if (!paymentResponse.success) {
+          throw new Error("Booking was created but checkout confirmation could not be finalized.");
+        }
+
         const receiptPayload = {
-          bookingId: response.data.booking_id,
+          bookingId,
           propertyTitle: bookingData.propertyTitle,
           propertyLocation: bookingData.propertyLocation,
           propertyImage: bookingData.propertyImage,
@@ -245,11 +278,12 @@ export default function CheckoutPage() {
           guestName: `${guestForm.firstName.trim()} ${guestForm.lastName.trim()}`.trim(),
           guestEmail: guestForm.email.trim(),
           paidAt: new Date().toISOString(),
+          confirmationEmailSent: Boolean(paymentResponse.data?.confirmation_email_sent),
         };
 
         localStorage.removeItem('pendingBooking');
         localStorage.setItem("lastBookingReceipt", JSON.stringify(receiptPayload));
-        router.push(`/checkout/success?bookingId=${response.data.booking_id}`);
+        router.push(`/checkout/success?bookingId=${bookingId}`);
       }
     } catch (err: unknown) {
       setError(getApiMessage(err, "Failed to create booking"));

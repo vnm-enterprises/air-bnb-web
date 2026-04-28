@@ -138,6 +138,42 @@ export async function verifyEmail(token: string): Promise<{ success: boolean; er
 }
 
 /**
+ * Resend verification email
+ */
+export async function resendVerificationEmail(email: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  try {
+    const res = await api.post('/api/v1/verify-email', {
+      action: 'resend',
+      email: normalizedEmail,
+    });
+    return { success: true, message: res.data?.message || 'Verification email sent. Please check your inbox and spam folder.' };
+  } catch (err: any) {
+    const status = err?.response?.status;
+
+    if (status === 404) {
+      try {
+        const fallbackRes = await api.post('/api/v1/resend-verification-email', {
+          email: normalizedEmail,
+        });
+
+        return {
+          success: true,
+          message: fallbackRes.data?.message || 'Verification email sent. Please check your inbox and spam folder.',
+        };
+      } catch (fallbackErr: any) {
+        const fallbackError = getApiErrorMessage(fallbackErr, 'Unable to resend verification email right now.');
+        return { success: false, error: fallbackError };
+      }
+    }
+
+    const error = getApiErrorMessage(err, 'Unable to resend verification email right now.');
+    return { success: false, error };
+  }
+}
+
+/**
  * Request password reset
  */
 export async function requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {

@@ -25,6 +25,7 @@ type ReceiptData = {
   guestName: string;
   guestEmail: string;
   paidAt: string;
+  confirmationEmailSent?: boolean;
 };
 
 function formatDate(value: string): string {
@@ -183,6 +184,13 @@ function SuccessPageContent() {
                 <p className="text-slate-600 mt-2">
                   {statusMessage(receipt.bookingStatus)}
                 </p>
+                {receipt.guestEmail ? (
+                  <p className="text-sm text-slate-500 mt-2">
+                    {receipt.confirmationEmailSent
+                      ? `A confirmation email was sent to ${receipt.guestEmail}.`
+                      : `Your booking receipt is tied to ${receipt.guestEmail}.`}
+                  </p>
+                ) : null}
               </div>
 
               <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">

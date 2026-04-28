@@ -196,18 +196,11 @@ export default function PropertyPage() {
             return;
           }
 
-          const normalizedEnd = new Date(end);
-
-          // Bookings use check-out as an exclusive boundary.
-          if (unavailableRange.reason === "booked") {
-            normalizedEnd.setDate(normalizedEnd.getDate() - 1);
-          }
-
-          if (normalizedEnd < start) {
-            return;
-          }
-
-          unavailableRanges.push({ from: start, to: normalizedEnd });
+          // Include the checkout day in the greyed range so the full booked
+          // period (check-in through check-out inclusive) is visually blocked.
+          // The backend conflict check uses an exclusive boundary so back-to-back
+          // bookings still work correctly at the API level.
+          unavailableRanges.push({ from: start, to: end });
         });
 
         setDisabledDateMatchers(unavailableRanges);

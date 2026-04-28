@@ -9,6 +9,8 @@ export interface PaymentResponse {
     payment_intent_id?: string | null;
     gateway?: string;
     gateway_status?: string | null;
+    confirmation_email_sent?: boolean;
+    email_provider?: string;
   };
 }
 

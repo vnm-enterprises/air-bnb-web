@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { validateLoginForm } from "@/application/controllers/auth-form-controller";
+import { authService } from "@/infrastructure/services";
 
 export function useLoginForm() {
   const router = useRouter();
@@ -14,6 +15,8 @@ export function useLoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
 
   const infoMessage = useMemo(() => {
     if (typeof window === "undefined") {
@@ -45,6 +48,7 @@ export function useLoginForm() {
     }
 
     setLoading(true);
+    setResendMessage("");
 
     try {
       const result = await login(normalizedEmail, password);
@@ -61,6 +65,32 @@ export function useLoginForm() {
     }
   };
 
+  const handleResendVerification = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    setError("");
+    setResendMessage("");
+
+    if (!normalizedEmail) {
+      setError("Enter your email address first.");
+      return;
+    }
+
+    setResendLoading(true);
+
+    try {
+      const result = await authService.resendVerificationEmail(normalizedEmail);
+
+      if (!result.success) {
+        setError(result.error || "Unable to resend verification email right now.");
+        return;
+      }
+
+      setResendMessage(result.message || "Verification email sent. Please check your inbox and spam folder.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   return {
     showPassword,
     setShowPassword,
@@ -69,8 +99,11 @@ export function useLoginForm() {
     password,
     setPassword,
     loading,
+    resendLoading,
     error,
     infoMessage,
+    resendMessage,
     handleSubmit,
+    handleResendVerification,
   };
 }
