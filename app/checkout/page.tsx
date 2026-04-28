@@ -236,14 +236,14 @@ export default function CheckoutPage() {
           // show a clear user-facing message instead of the API message.
           setError('Dates unavailable. Please choose different dates.');
           setLoading(false);
-          setStep('');
+          setStep('ready');
           return;
         }
       } catch (e) {
         // If availability check failed unexpectedly, surface a friendly message and abort.
         setError('Failed to verify availability. Please try again.');
         setLoading(false);
-        setStep('');
+        setStep('ready');
         return;
       }
 
