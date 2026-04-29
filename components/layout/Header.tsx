@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import ProfileModal from "@/components/ui/ProfileModal";
 
 export default function Header() {
-  const { isAuthenticated, user, logout, isHost, isTraveler, loading } = useAuth();
+  const { isAuthenticated, user, logout, isHost, isTraveler, isAdmin, loading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -104,6 +104,15 @@ export default function Header() {
 
             {isAuthenticated && !loading && (
               <>
+                {isAdmin() && (
+                  <Link
+                    href="/admin"
+                    className="text-base font-medium text-slate-600 transition hover:text-slate-950"
+                  >
+                    Admin Panel
+                  </Link>
+                )}
+
                 {isHost() && (
                   <Link
                     href="/host"
@@ -251,6 +260,15 @@ export default function Header() {
                   <p className="text-base font-semibold text-slate-900">{user?.name}</p>
                   <p className="text-xs text-slate-500">{user?.email}</p>
                 </div>
+
+                {isAdmin() && (
+                  <button
+                    onClick={() => handleNavigate("/admin")}
+                    className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-left text-lg font-medium text-slate-700 transition hover:bg-white hover:text-slate-950"
+                  >
+                    Admin Panel
+                  </button>
+                )}
 
                 {isHost() && (
                   <button
