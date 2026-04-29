@@ -15,7 +15,7 @@ const FALLBACK_IMAGE =
 function PropertyCardSkeleton() {
   return (
     <div className="animate-pulse space-y-3">
-      <div className="aspect-4/3 rounded-xl bg-slate-200 lg:aspect-3/4" />
+      <div className="aspect-video rounded-xl bg-slate-200" />
       <div className="h-5 w-3/4 rounded bg-slate-200" />
       <div className="h-4 w-1/2 rounded bg-slate-200" />
       <div className="h-10 w-full rounded-lg bg-slate-200" />
@@ -35,7 +35,7 @@ export default function CuratedCollections() {
     try {
       setLoading(true);
       setError(null);
-      const response = await getProperties({ per_page: 8 });
+      const response = await getProperties({ per_page: 6 });
       if (response.success) {
         setProperties(response.data?.properties ?? []);
       } else {
@@ -82,10 +82,10 @@ export default function CuratedCollections() {
     return (
       <article
         key={property.id}
-        className="relative flex h-full min-w-85 cursor-pointer flex-col overflow-hidden rounded-3xl border border-[#d5e6e5] bg-white shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.14)]"
+        className="relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-[#d5e6e5] bg-white shadow-[0_14px_32px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.14)]"
         onClick={() => router.push(`/properties/${property.id}`)}
       >
-        <div className="relative aspect-4/3 overflow-hidden lg:aspect-3/4">
+        <div className="relative aspect-video overflow-hidden">
           <Image
             src={imageSrc}
             alt={property.title}
@@ -175,9 +175,9 @@ export default function CuratedCollections() {
         </button>
       </div>
 
-      <div className="hidden grid-cols-1 gap-6 lg:grid lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
-          Array.from({ length: 8 }).map((_, index) => <PropertyCardSkeleton key={index} />)
+          Array.from({ length: 6 }).map((_, index) => <PropertyCardSkeleton key={index} />)
         ) : error ? (
           <div className="col-span-full rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
             <p>{error}</p>
@@ -196,7 +196,7 @@ export default function CuratedCollections() {
       </div>
 
       {!loading && !error && properties.length > 0 && (
-        <div className="lg:hidden">
+        <div className="hidden">
           <div className="overflow-hidden rounded-3xl">
             <div
               className="flex transition-transform duration-700 ease-out"
