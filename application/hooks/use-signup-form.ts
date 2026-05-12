@@ -90,7 +90,11 @@ export function useSignupForm() {
       setAgreedTerms(false);
 
       setTimeout(() => {
-        router.push(`/login?message=${encodeURIComponent("Please check your email to verify your account")}`);
+        router.push(
+          `/login?message=${encodeURIComponent(
+            "Please check your email to verify your account"
+          )}&email=${encodeURIComponent(normalizedEmail)}`
+        );
       }, 1800);
     } catch {
       setError("Something went wrong while creating your account. Please try again.");
