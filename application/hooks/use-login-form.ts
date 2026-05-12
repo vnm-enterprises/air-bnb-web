@@ -18,22 +18,33 @@ export function useLoginForm() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
 
-  const infoMessage = useMemo(() => {
+  const queryParams = useMemo(() => {
     if (typeof window === "undefined") {
-      return "";
+      return new URLSearchParams();
     }
 
-    return new URLSearchParams(window.location.search).get("message") || "";
+    return new URLSearchParams(window.location.search);
   }, []);
+
+  const infoMessage = queryParams.get("message") || "";
+  const emailFromQuery = queryParams.get("email") || "";
+  const showResendVerification =
+    infoMessage === "Please check your email to verify your account" && !!emailFromQuery;
+
+  useEffect(() => {
+    if (emailFromQuery && !email) {
+      setEmail(emailFromQuery);
+    }
+  }, [emailFromQuery, email]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       return;
     }
 
-    const redirect = new URLSearchParams(window.location.search).get("redirect") || "/properties";
+    const redirect = queryParams.get("redirect") || "/properties";
     router.push(redirect);
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, queryParams, router]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -103,6 +114,7 @@ export function useLoginForm() {
     error,
     infoMessage,
     resendMessage,
+    showResendVerification,
     handleSubmit,
     handleResendVerification,
   };
