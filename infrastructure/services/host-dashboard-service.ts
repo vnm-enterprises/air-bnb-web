@@ -84,7 +84,7 @@ export async function fetchHostBookingsDetailed(perPage = 50): Promise<Normalize
     .filter((booking) => booking.id > 0 && booking.propertyId > 0);
 }
 
-export async function fetchHostProperties(_userId: number, perPage = 50): Promise<Property[]> {
+export async function fetchHostProperties(perPage = 50): Promise<Property[]> {
   const firstPage = await getHostOwnProperties({ page: 1, per_page: perPage });
   const allProperties = [...firstPage.data.properties];
   const pages = firstPage.data.pagination.pages || 1;
