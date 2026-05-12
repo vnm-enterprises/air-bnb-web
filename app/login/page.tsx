@@ -21,6 +21,7 @@ export default function LoginPage() {
     error,
     infoMessage,
     resendMessage,
+    showResendVerification,
     handleSubmit,
     handleResendVerification,
   } = useLoginForm();
@@ -58,60 +59,64 @@ export default function LoginPage() {
           />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-slate-700">Password</label>
-            <Link
-              href="/forgot-password"
-              className="text-xs font-semibold text-[#2C5F5D] hover:underline"
-            >
-              Forgot password?
-            </Link>
+        {!showResendVerification && (
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700">Password</label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-semibold text-[#2C5F5D] hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            <div className="relative mt-2">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pr-12"
+                disabled={loading}
+                autoComplete="current-password"
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                disabled={loading}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4 text-slate-500" />
+                ) : (
+                  <Eye className="h-4 w-4 text-slate-500" />
+                )}
+              </button>
+            </div>
           </div>
+        )}
 
-          <div className="relative mt-2">
-            <Input
-              type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pr-12"
-              disabled={loading}
-              autoComplete="current-password"
-            />
-
-            <button
-              type="button"
-              onClick={() => setShowPassword((value) => !value)}
-              className="absolute right-3 top-1/2 -translate-y-1/2"
-              disabled={loading}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? (
-                <EyeOff className="h-4 w-4 text-slate-500" />
-              ) : (
-                <Eye className="h-4 w-4 text-slate-500" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        <Button
-          type="submit"
-          disabled={loading}
-          className="h-12 w-full"
-        >
-          {loading ? "Signing In..." : "Sign In"}
-        </Button>
-
-        <button
-          type="button"
-          onClick={handleResendVerification}
-          disabled={loading || resendLoading}
-          className="w-full text-sm font-semibold text-[#2C5F5D] hover:underline disabled:opacity-50"
-        >
-          {resendLoading ? "Resending verification email..." : "Resend verification email"}
-        </button>
+        {!showResendVerification ? (
+          <Button
+            type="submit"
+            disabled={loading}
+            className="h-12 w-full"
+          >
+            {loading ? "Signing In..." : "Sign In"}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={loading || resendLoading}
+            className="h-12 w-full"
+          >
+            {resendLoading ? "Resending verification email..." : "Resend verification email"}
+          </Button>
+        )}
       </form>
     </AuthLayout>
   );
