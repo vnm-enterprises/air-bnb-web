@@ -679,12 +679,7 @@ export default function PropertyPage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => void openHostContactModal()}
-                className="mt-8 bg-black text-white px-6 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition"
-              >
-                Contact Host
-              </button>
+
             </div>
           </div>
 
@@ -795,7 +790,7 @@ export default function PropertyPage() {
                   localStorage.setItem("pendingBooking", JSON.stringify(bookingData));
                   router.push("/checkout");
                 }}
-                className="mt-6 w-full bg-[#306966] text-white py-3 rounded-lg font-medium hover:bg-[#244f4d] transition"
+                className="mt-4 w-full bg-[#306966] text-white py-3 rounded-lg font-medium hover:bg-[#244f4d] transition"
               >
                 {isAuthenticated ? "Reserve Now" : "Login to Book"}
               </button>
