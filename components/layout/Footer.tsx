@@ -48,7 +48,6 @@ export default function Footer() {
             <ul className="space-y-3 text-slate-600">
               <li><Link href="/host" className="transition hover:text-[#2C5F5D]">Become a Host</Link></li>
               <li><Link href="/host/resources" className="transition hover:text-[#2C5F5D]">Host Resources</Link></li>
-              <li><Link href="/host/dashboard" className="transition hover:text-[#2C5F5D]">Host Dashboard</Link></li>
             </ul>
           </div>
 
