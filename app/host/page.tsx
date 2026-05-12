@@ -142,7 +142,7 @@ export default function HostDashboardPage() {
             status: toDashboardStatus(booking.status),
           };
         });
-        const hostProperties = await fetchHostProperties(user.id, 50);
+        const hostProperties = await fetchHostProperties(50);
 
         const confirmedBookings = normalizedBookings.filter(
           (booking) => toDashboardStatus(booking.status) === "Confirmed"
