@@ -110,7 +110,7 @@ export default function HostListingsPage() {
     setDataError(null);
 
     try {
-      const hostListings = (await fetchHostProperties(user.id, 50)).map(mapPropertyToListing);
+      const hostListings = (await fetchHostProperties(50)).map(mapPropertyToListing);
 
       setListings(hostListings);
     } catch (error: unknown) {
